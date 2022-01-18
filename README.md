@@ -73,7 +73,9 @@ SHIELD runs in an interconnected functions defined by its respective classes cal
 - `Data` handles the data preprocessing. 
 
 ## Clock Module
-SHIELD uses a DS3231 Realtime Clock (RTC) module to provide the Date and Time Functionalities. By default, it provides the timestamp in **GMT+08:00 timezone** as specified by the `UTC_OFFSET_IN_SECONDS` macro.
+SHIELD uses a DS3231 Realtime Clock (RTC) module to provide the Date and Time Functionalities. By default, it provides the timestamp in **GMT+08:00 timezone** as specified by the `UTC_OFFSET_IN_SECONDS` macro. SHIELD also alows clock synchronization
+with *Network Time Protocol (NTP)* servers via the macro `NTP_SERVER_ADDRESS` which utilizes the Wifi capability of the system.
+**NOTE:** *to enable clock sync, the device shall be connected first to a Wi-Fi.*
 
 ## Required Third-Party Libraries
 SHIELD uses numerous third-party libraries to perform specific functions. These libraries are required and must be installed prior before using the SHIELD library.
