@@ -19,8 +19,7 @@ Device::Device(DeviceType _setdeviceAs) {
 }
 
 /**
- * @brief Starts the device based on the set device type.
- * 
+ * @brief Starts the device based on the set device type. 
  */
 void Device::startDevice() {
     _clk.beginClock();    
@@ -68,10 +67,6 @@ char* Device::getDeviceTime(DeviceTimeFormat _dtFormat) {
 #pragma region CLOCK
 //=============================== Clock Functions ===============================
 
-Clock::Clock() {
-    //Do nothing
-}
-
 /**
  * @brief Initializes SHIELD RTC Module. 
  */
@@ -116,9 +111,6 @@ unsigned long Clock::_getNTPUnixTime() {
 
 #pragma region Wi-Fi
 //=============================== Wi-Fi Functions ===============================
-Wifi::Wifi(){
-    //Do nothing
-}
 
 /**
  * @brief Connects to a saved Wi-Fi.
