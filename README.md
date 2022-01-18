@@ -41,32 +41,29 @@ SHIELD runs in an interconnected functions defined by its respective classes cal
 **Hardware-involved Modules:**
 
 - `Clock` manages the Date and Time function of the system.
-  **Hardware:** `DS3231 RTC Module`
+    - uses `DS3231 RTC Module`
 
 - `Wifi` manages the Wi-Fi capability of the system.
-  **Hardware:** `NodeMCU v3 ESP8266 board`
+    - uses `Uses NodeMCU v3 ESP8266 board`
 
 - `BLE` manages the Blowtooth Low Energy (BLE) functions.
-  **Hardware:** `AT-09 BLE Module with Bluetooth 4.0 CC2541 BLE Chip`
+    - uses `Uses AT-09 BLE Module with Bluetooth 4.0 CC2541 BLE Chip`
 
 - `Datalogger` serves as the system's file manager.
-  **Hardware:**
-    - `MicroSD Card at least 4GB (12GB MAX)`
-    - `MicroSD Card Module`
+    - uses `Uses MicroSD Card at least 4GB (12GB MAX)` and `MicroSD Card Module`.
 
 - `Display` manages the visual output of the system (both serial and OLED displays).
-    **Hardware:** `0.91-inch OLED 128X32 display module`
+    - uses `Uses 0.91-inch OLED 128X32 display module`
 
 - `Notification` handles the audio and visual notification functions.
-  **Hardware:**
-    - `3V Active Buzzer`
-    - `WS2812B 5050 SMD RGB LED with WS2811 LED controller chip`
+    - uses `3V Active Buzzer`
+    - uses `WS2812B 5050 SMD RGB LED with WS2811 LED controller chip`
 
 - `Sensor` manages the Gyroscope component.
-    **Hardware:** `GY-521 MPU-6050 Accelerometer + Gyroscope Module`
+    - uses `GY-521 MPU-6050 Accelerometer + Gyroscope Module`
 
 - `Touch` manages the touch switch component.
-    **Hardware:** `TTP223 Key Switch Module Button`
+    - uses `TTP223 Key Switch Module Button`
 
 
 **Software-only Modules:**
