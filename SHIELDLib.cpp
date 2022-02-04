@@ -24,6 +24,7 @@ Device::Device(DeviceType _setdeviceAs) {
 void Device::startDevice() {
     _clk.beginClock();    
     _clk.syncClock();
+    FastLED.addLeds<WS2811, DATA_PIN, RGB>(leds, NUM_LEDS);
 
     Serial.print("SHIELD Device ");
     Serial.print(getDeviceType());
@@ -61,6 +62,61 @@ char* Device::getDeviceTime(DeviceTimeFormat _dtFormat) {
             break;
     }
     return _dt;
+}
+
+/**
+ * @brief This lights up the builtin LED 
+ */
+void Device::lightupLED() {
+    int _status = 1;    //Get the HealthStatus of the device
+
+    switch(_status) {
+        case 1:     //U0 - Healthy or Normal            
+            leds[0] = CRGB(0, 255, 0);  //Green
+            break;
+
+        case 2:     //U1 - Suspected
+            leds[0] = CRGB(255, 165, 0);  //Orange
+            break;
+
+        case 3:     //U2 - Positive
+            leds[0] = CRGB(255, 0, 0);  //Red
+            break;
+
+        case 4:     //U3 - Recovered
+            leds[0] = CRGB(0, 0, 255);  //Blue
+            break;
+
+        case 5:     //U5 and U6 - System Flag
+            leds[0] = CRGB(128,0,128);  //Purple
+            break;
+    }
+
+    FastLED.show();
+}
+
+/**
+ * @brief This generates the tag.
+ * 
+ * @return char* 
+ */
+char* Device::generateTag() {
+    //Performs the protocol PREPROCESSING BLOCK
+    StaticJsonDocument<384> doc;
+    char* _rawpayload;
+
+    doc["HS"] = "U3";
+    doc["CV"] = 1351824120;
+    doc["MA"] = "506583791D47";
+    doc["CN"] = "9971432991";
+    doc["CT"] = "1642088234";
+    doc["ET"] = "1642089134";
+    doc["IV"] = "y$B&E)H@McQfThWmZq4t7w!z%C*F-JaN";
+    doc["IK"] = "3s6v9y$B&E)H@McQfTjWnZr4u7w!z%C*";
+
+    serializeJson(doc, _rawpayload);
+    //End Preprocessing Block
+    return _rawpayload;
 }
 #pragma endregion
 
@@ -134,4 +190,33 @@ void Wifi::connect(char* wifi_ssid, char* wifi_password) {
     Serial.println("\nConnected.");
 }
 //===============================================================================
+#pragma endregion
+
+#pragma region 
+//=============================== Health Status Functions ===============================
+HealthStatus Tag::getHealthStatus() {
+    return _currentHealthStatus;
+}
+
+char* Tag::getContactNumber() {
+    return _cnumber;
+}
+
+/**
+ * @brief Sets the Contact number
+ * 
+ * @param _contactNumber 
+ */
+void Tag::_setContactNumber(char* _contactNumber) {
+    _cnumber = _contactNumber;
+}
+
+/**
+ * @brief Sets the current health status
+ * 
+ * @param _hstatus 
+ */
+void Tag::_setHealthStatus (HealthStatus _hstatus){
+    currentHealthStatus = _hstatus;
+}
 #pragma endregion

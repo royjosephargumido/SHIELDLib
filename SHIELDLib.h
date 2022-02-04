@@ -18,6 +18,7 @@
 #include <SPI.h>            //Serial Peripheral Interface (SPI) Protocol for the SD Card Module
 #include <Wire.h>           //I2C Protocol for Two-Wire modules
 #include <RTClib.h>         //Real-time Clock (RTC) Functionalities
+#include <FastLED.h>        //WS2811 Led Notification
 #include <WiFiUdp.h>        //Wi-Fi User Datagram Protocol (UDP) for NTP Functionality
 #include <TimeLib.h>        //Date-Time Functionality
 #include "base64.hpp"       //Base64 functionality
@@ -28,6 +29,9 @@
 #define UTC_OFFSET_IN_SECONDS 28800                 //Formats the time in GMT+08:00 Manila, Philippines
 #define NTP_SERVER_ADDRESS "asia.pool.ntp.org"      //Network Time Protocol (NTP) Server
 #define TAG_EXPIRATION_TIME 15                      //Tag expiration time in minutes
+
+#define NUM_LEDS 1          //Number of WS2811 LED
+#define DATA_PIN D2         //Data Pin used by the LED
 
 /**
  * @brief SHIELD Device Types
@@ -76,7 +80,9 @@ class Device
         void startDevice();
         const char* getDeviceType();
         char* getDeviceTime(DeviceTimeFormat _dtFormat);
+        void lightupLED();
 
+        char* generateTag();    //Generates the payload
     private:
 };
 
@@ -109,15 +115,17 @@ class Wifi
 class Tag
 {
     public:
-        void getHealthStatus();
+        HealthStatus getHealthStatus();
         void getCIRRUSVersion();
         char* createGUID();
         char* getContactNumber();
         char* getSensorData();        
 
     private:
-        void setHealthStatus(HealthStatus _hstatus);
-        HealthStatus currentHealthStatus;
+        void _setHealthStatus(HealthStatus _hstatus);
+        void _setContactNumber(char* _contactNumber);
+        char* _cnumber;
+        HealthStatus _currentHealthStatus;
 };
 
 #endif
