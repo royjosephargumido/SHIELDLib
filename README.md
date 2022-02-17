@@ -24,15 +24,6 @@ Device device_name(device_type);
 ```
 Replace `device_name` with your identifier and `device_type` with the device type macro *BEACON* or *NEURON*. The library automatically provide all applicable functions easily.
 
-After setting the device'object, the following are the base functions availble for the two device:
-
-```c
-startDevice()                                   //Starts the device.
-getDeviceType()                                 //Retrieves the device type.
-getDeviceTime(DeviceTimeFormat _dtFormat)       //Retrieves device time in a specified system formatting.
-syncClock()                                     //Synchronizes device clock with NTP Server
-```
-
 **Note:** ***There is no need to call or invoke a certain functionality from other system module since all other system functions are automatically managed by the Device constructor upon creation.***
 
 ## System Modules
@@ -59,9 +50,6 @@ SHIELD runs in an interconnected functions defined by its respective classes cal
     - uses `3V Active Buzzer`
     - uses `WS2812B 5050 SMD RGB LED with WS2811 LED controller chip`
 
-- `Sensor` manages the Gyroscope component.
-    - uses `GY-521 MPU-6050 Accelerometer + Gyroscope Module`
-
 - `Touch` manages the touch switch component.
     - uses `TTP223 Key Switch Module Button`
 
@@ -87,10 +75,14 @@ SHIELD uses numerous third-party libraries to perform specific functions. These 
 | SPI.h | Serial Peripheral Interface (SPI) Protocol for the SD Card Module. | *Builtin* |
 | Wire.h | I2C Protocol for Two-Wire modules. | *Builtin* |
 | RTClib.h | Real-time Clock (RTC) functionalities. | 2.0.2 |
+| FastLED.h | WS2811 RGB Led | |
+| PCF8574.h | PCF8574 GPIO Expander | |
 | WiFiUdp.h | Wi-Fi User Datagram Protocol (UDP) for NTP Functionality. | *Builtin* |
 | TimeLib.h | Date-Time related functionalities. | 1.6.1 |
+| base64.hpp | Base64 functionality | |
 | NTPClient.h |Network Time Protocol (NTP) functionalities. | 3.2.0 |
 | ESP8266WiFi.h | NodeMCU ESP8266 Wi-Fi functionalities. | *Builtin* |
 | ArduinoJson.h | JSON in Arduino. | 6.19.1 |
+| SoftwareSerial.h | Serial Communication | |
 
 [1]:<https://github.com/rjargumido/SHIELD>

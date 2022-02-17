@@ -1,12 +1,31 @@
 #include "SHIELDLib.h"
 
+//Required objects from other third-party libraries
 RTC_DS3231 rtc;
 WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);
 
+//Required internal objects
 Clock _clk;
 Wifi _wf;
 
-NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);
+void display(char* _message) {
+    switch(currentDisplayChannel) {
+        case useBothDisplays:   /*SYSTEM DEFAULT DISPLAY*/
+            Serial.print(_message);
+            //Display message in OLED
+            break;
+
+        case useSerialMonitor:
+            Serial.print(_message);
+            break;
+        
+        case useOLEDDisplay:
+            //Display message in OLED only
+            break;
+    }
+}
+
 
 #pragma region Device
 /**
@@ -120,9 +139,8 @@ char* Device::generateTag() {
 }
 #pragma endregion
 
-#pragma region CLOCK
 //=============================== Clock Functions ===============================
-
+#pragma region Clock
 /**
  * @brief Initializes SHIELD RTC Module. 
  */
@@ -162,12 +180,10 @@ unsigned long Clock::_getNTPUnixTime() {
     timeClient.update();
     return timeClient.getEpochTime();
 }
-//===============================================================================
 #pragma endregion
 
-#pragma region Wi-Fi
 //=============================== Wi-Fi Functions ===============================
-
+#pragma region Wi-Fi
 /**
  * @brief Connects to a saved Wi-Fi.
  */
@@ -192,12 +208,22 @@ void Wifi::connect(char* wifi_ssid, char* wifi_password) {
 //===============================================================================
 #pragma endregion
 
-#pragma region 
+#pragma region Tag
 //=============================== Health Status Functions ===============================
+/**
+ * @brief Returns the device HealthStatus
+ * 
+ * @return HealthStatus 
+ */
 HealthStatus Tag::getHealthStatus() {
     return _currentHealthStatus;
 }
 
+/**
+ * @brief Returns the contact number
+ * 
+ * @return char* 
+ */
 char* Tag::getContactNumber() {
     return _cnumber;
 }

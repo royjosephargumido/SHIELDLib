@@ -19,12 +19,14 @@
 #include <Wire.h>           //I2C Protocol for Two-Wire modules
 #include <RTClib.h>         //Real-time Clock (RTC) Functionalities
 #include <FastLED.h>        //WS2811 Led Notification
+#include <PCF8574.h>        //For the PCF8574 GPIO Expander
 #include <WiFiUdp.h>        //Wi-Fi User Datagram Protocol (UDP) for NTP Functionality
 #include <TimeLib.h>        //Date-Time Functionality
 #include "base64.hpp"       //Base64 functionality
 #include <NTPClient.h>      //Network Time Protocol (NTP) Functions
 #include <ESP8266WiFi.h>    //NodeMCU ESP8266 Wi-Fi Functionalities
 #include <ArduinoJson.h>    //JSON in Arduino
+#include <SoftwareSerial.h> //Serial Communication
 
 #define UTC_OFFSET_IN_SECONDS 28800                 //Formats the time in GMT+08:00 Manila, Philippines
 #define NTP_SERVER_ADDRESS "asia.pool.ntp.org"      //Network Time Protocol (NTP) Server
@@ -67,11 +69,12 @@ enum HealthStatus {
  * @brief Used for displaying messages
  */
 enum DisplayChannel {
-    useSystemDefault,
+    useBothDisplays, /*SYSTEM DEFAULT DISPLAY*/
     useSerialMonitor,
-    useOLEDDisplay,
-    useBothDisplays
+    useOLEDDisplay    
 } currentDisplayChannel;
+
+void display(char* _message);
 
 class Device
 {
@@ -99,7 +102,6 @@ class Clock
         
     private:
         unsigned long _getNTPUnixTime();    //Gets the NTP Unix time
-        
 };
 
 class Wifi
