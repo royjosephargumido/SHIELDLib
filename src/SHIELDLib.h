@@ -71,7 +71,8 @@ enum HealthStatus {
 enum DisplayChannel {
     useBothDisplays, /*SYSTEM DEFAULT DISPLAY*/
     useSerialMonitor,
-    useOLEDDisplay    
+    useOLEDDisplay,    
+    useNoDisplay
 } currentDisplayChannel;
 
 void display(char* _message);
@@ -79,11 +80,15 @@ void display(char* _message);
 class Device
 {
     public:
-        Device(DeviceType _deviceAs);
+        Device(DeviceType _setdeviceAs);
         void startDevice();
+        char* generateTag();
+
+
         const char* getDeviceType();
         char* getDeviceTime(DeviceTimeFormat _dtFormat);
         void lightupLED();
+        void setDisplayChannel(DisplayChannel _dchannel);
 
         char* generateTag();    //Generates the payload
     private:
