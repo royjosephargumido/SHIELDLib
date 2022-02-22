@@ -41,14 +41,35 @@ Device::Device(DeviceType _setdeviceAs) {
  * @brief Starts the device based on the set device type. 
  */
 void Device::startDevice() {
+
+    if(getDeviceType() == NEURON) {
+        //Sets the display to OLED Only
+        currentDisplayChannel = useOLEDDisplay;
+    } else {
+        currentDisplayChannel = useNoDisplay;
+    }
+
     _clk.beginClock();    
     _clk.syncClock();
-    FastLED.addLeds<WS2811, DATA_PIN, RGB>(leds, NUM_LEDS);
+    FastLED.addLeds<WS2811, DATA_PIN, RGB>(leds, NUM_LEDS);    
 
-    Serial.print("SHIELD Device ");
-    Serial.print(getDeviceType());
-    Serial.println(" now running.");
+    display("SHIELD Device " + getDeviceType() + " now running.");
 }
+
+char* Device::generateTag() {
+
+}
+
+/**
+ * @brief Set the display channel.
+ * 
+ * @param _dchannel 
+ */
+void Device::setDisplayChannel(DisplayChannel _dchannel) {
+    currentDisplayChannel = _dchannel;
+}
+
+
 
 /**
  * @brief Returns the SHIELD device type.
