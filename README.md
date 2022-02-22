@@ -44,13 +44,13 @@ SHIELD strictly follow the following file structuring schemes:
     |   |    |
     |   |    +--- circ_1642084941.shield
     |   |
-    |   +--- Memories
-    |   |    |
-    |   |    +--- transcript_d1.shield
-    |   |
     |   +--- CIRRUS
+    |   |    |
+    |   |    +--- cirrus.shield
+    |   |
+    |   +--- Memories
     |        |
-    |        +--- cirrus.shield
+    |        +--- transcript_1642084941.shield
     |
     +---System
         |
@@ -83,11 +83,7 @@ SHIELD runs in an interconnected functions defined by its respective classes cal
     - uses `Uses 0.91-inch OLED 128X32 display module`
 
 - `Notification` handles the audio and visual notification functions.
-    - uses `3V Active Buzzer`
     - uses `WS2812B 5050 SMD RGB LED with WS2811 LED controller chip`
-
-- `Touch` manages the touch switch component.
-    - uses `TTP223 Key Switch Module Button`
 
 
 **Software-only Modules:**
