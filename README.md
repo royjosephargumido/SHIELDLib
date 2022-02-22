@@ -30,6 +30,8 @@ Replace `device_name` with your identifier and `device_type` with the device typ
 SHIELD strictly follow the following file structuring schemes:
 
 **Beacon File Structuring**
+
+
     FileSystem:
     |
     +---Data
