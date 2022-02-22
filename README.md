@@ -26,6 +26,40 @@ Replace `device_name` with your identifier and `device_type` with the device typ
 
 **Note:** ***There is no need to call or invoke a certain functionality from other system module since all other system functions are automatically managed by the Device constructor upon creation.***
 
+## File System
+SHIELD strictly follow the following file structuring schemes:
+
+**Beacon File Structuring**
+FileSystem:
+|
++---Data
+|   |
+|   +--- Audit
+|   |    |
+|   |    +--- audit_1642084941.shield
+|   |
+|   +--- Circadian
+|   |    |
+|   |    +--- circ_1642084941.shield
+|   |
+|   +--- Memories
+|   |    |
+|   |    +--- transcript_d1.shield
+|   |
+|   +--- CIRRUS
+|        |
+|        +--- cirrus.shield
+|
++---System
+    |
+    +--- Documentation
+    |    |
+    |    +--- SHIELD User Manual.pdf
+    |
+    +--- Tools
+    |
+    +--- beaconconfig.shield
+
 ## System Modules
 SHIELD runs in an interconnected functions defined by its respective classes called **modules**.
 
