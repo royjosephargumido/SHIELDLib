@@ -14,6 +14,7 @@
 #ifndef SHIELDLib_H
 #define SHIELDLib_H
 
+#pragma region Libraries
 #include <SD.h>             //SD Card Functionality
 #include <SPI.h>            //Serial Peripheral Interface (SPI) Protocol for the SD Card Module
 #include <Wire.h>           //I2C Protocol for Two-Wire modules
@@ -27,13 +28,44 @@
 #include <ESP8266WiFi.h>    //NodeMCU ESP8266 Wi-Fi Functionalities
 #include <ArduinoJson.h>    //JSON in Arduino
 #include <SoftwareSerial.h> //Serial Communication
+#pragma endregion
 
+#pragma region PIN Configuration
+#define pin_dataLED D2  //Data Pin used by the LED
+#define pin_csSD D8     //SD Card Chip Select Pin
+#pragma endregion
+
+#pragma region NTP
 #define UTC_OFFSET_IN_SECONDS 28800                 //Formats the time in GMT+08:00 Manila, Philippines
 #define NTP_SERVER_ADDRESS "asia.pool.ntp.org"      //Network Time Protocol (NTP) Server
-#define TAG_EXPIRATION_TIME 15                      //Tag expiration time in minutes
+#pragma endregion
 
-#define NUM_LEDS 1          //Number of WS2811 LED
-#define DATA_PIN D2         //Data Pin used by the LED
+#pragma region File System
+#define slash '/'
+
+#define folder_Data "Data"
+#define folder_Audit "Audit"
+#define folder_Circadian "Circadian"
+#define folder_CIRRUS "CIRRUS"
+#define folder_Memories "Memories"
+
+#define folder_System "System"
+#define folder_Docu "Documentation"
+#define folder_Core "Core"
+
+#define fn_CoreConfiguration "BeaconConfig.shield"
+
+const String dir_audit = String() + folder_Data + slash + folder_Audit + slash;
+const String dir_circadian = String() + folder_Data + slash + folder_Circadian + slash;
+const String dir_cirrus = String() + folder_Data + slash + folder_CIRRUS + slash;
+const String dir_memories = String() + folder_Data + slash + folder_Memories + slash;
+const String dir_core = String() + folder_System + slash + folder_Core + slash + fn_CoreConfiguration;
+#pragma endregion
+
+#pragma region Others
+#define NUM_LEDS 1
+CRGB leds[NUM_LEDS];
+#pragma endregion
 
 /**
  * @brief SHIELD Device Types
@@ -83,14 +115,12 @@ class Device
         Device(DeviceType _setdeviceAs);
         void startDevice();
         char* generateTag();
+        void sendPayload(char* _payload);
+        void decodePayload(String _payload);
 
-
-        const char* getDeviceType();
         char* getDeviceTime(DeviceTimeFormat _dtFormat);
         void lightupLED();
         void setDisplayChannel(DisplayChannel _dchannel);
-
-        char* generateTag();    //Generates the payload
     private:
 };
 

@@ -26,7 +26,6 @@ void display(char* _message) {
     }
 }
 
-
 #pragma region Device
 /**
  * @brief Initializes the device type which automatically configures the device based on its type. 
@@ -42,22 +41,20 @@ Device::Device(DeviceType _setdeviceAs) {
  */
 void Device::startDevice() {
 
+    /*
     if(getDeviceType() == NEURON) {
         //Sets the display to OLED Only
         currentDisplayChannel = useOLEDDisplay;
     } else {
         currentDisplayChannel = useNoDisplay;
     }
+    */
 
     _clk.beginClock();    
     _clk.syncClock();
-    FastLED.addLeds<WS2811, DATA_PIN, RGB>(leds, NUM_LEDS);    
+    FastLED.addLeds<WS2811, pin_dataLED, RGB>(leds, NUM_LEDS);    
 
-    display("SHIELD Device " + getDeviceType() + " now running.");
-}
-
-char* Device::generateTag() {
-
+    //display("SHIELD Device " + getDeviceType() + " now running.");
 }
 
 /**
@@ -67,18 +64,6 @@ char* Device::generateTag() {
  */
 void Device::setDisplayChannel(DisplayChannel _dchannel) {
     currentDisplayChannel = _dchannel;
-}
-
-
-
-/**
- * @brief Returns the SHIELD device type.
- * 
- * @return const char* 
- */
-const char* Device::getDeviceType() {
-    const char* type = (currentType == BEACON) ? "Beacon" : "Neuron";
-    return type;
 }
 
 /**
@@ -141,7 +126,16 @@ void Device::lightupLED() {
  * @return char* 
  */
 char* Device::generateTag() {
+    /*
+        SHIELD Protocol
+
+        1. Preprocessing Block: Converts raw data to JSON
+        2. Encryption: Encrypts JSON data
+        3. Error-Correction: Adds error correction to the payload
+    */
+
     //Performs the protocol PREPROCESSING BLOCK
+    /*
     StaticJsonDocument<384> doc;
     char* _rawpayload;
 
@@ -153,7 +147,7 @@ char* Device::generateTag() {
     doc["ET"] = "1642089134";
     doc["IV"] = "y$B&E)H@McQfThWmZq4t7w!z%C*F-JaN";
     doc["IK"] = "3s6v9y$B&E)H@McQfTjWnZr4u7w!z%C*";
-
+    */
     serializeJson(doc, _rawpayload);
     //End Preprocessing Block
     return _rawpayload;
@@ -264,6 +258,6 @@ void Tag::_setContactNumber(char* _contactNumber) {
  * @param _hstatus 
  */
 void Tag::_setHealthStatus (HealthStatus _hstatus){
-    currentHealthStatus = _hstatus;
+    //currentHealthStatus = _hstatus;
 }
 #pragma endregion
