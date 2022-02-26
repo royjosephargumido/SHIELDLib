@@ -58,9 +58,15 @@ SHIELD strictly follow the following file structuring schemes:
         |    |
         |    +--- SHIELD User Manual.pdf
         |
+        +--- Dumps
+        |    |
+        |    +--- dump_1642084941.shield
+        |
         +--- Core
             |
             +--- beaconconfig.shield
+            |
+            +--- wifi.shield
 
 ## System Modules
 SHIELD runs in an interconnected functions defined by its respective classes called **modules**.
