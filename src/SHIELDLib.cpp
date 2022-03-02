@@ -4,12 +4,12 @@
 RTC_DS3231 rtc;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);
-
-//Required internal objects
-Clock _clk;
+File file;
 Wifi _wf;
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-void display(char* _message) {
+void display(String _message) {
     switch(currentDisplayChannel) {
         case useBothDisplays:   /*SYSTEM DEFAULT DISPLAY*/
             Serial.print(_message);
@@ -26,35 +26,126 @@ void display(char* _message) {
     }
 }
 
-#pragma region Device
 /**
  * @brief Initializes the device type which automatically configures the device based on its type. 
  * 
  * @param _deviceAs Set the device type either as BEACON or as NEURON.
  */
-Device::Device(DeviceType _setdeviceAs) {
-    currentType = _setdeviceAs;
+SHIELDDevice::SHIELDDevice() {
+    //Do nothing
 }
 
 /**
- * @brief Starts the device based on the set device type. 
+ * @brief Starts the SHIELD device. 
  */
-void Device::startDevice() {
+void SHIELDDevice::startDevice() {
 
-    /*
-    if(getDeviceType() == NEURON) {
-        //Sets the display to OLED Only
-        currentDisplayChannel = useOLEDDisplay;
-    } else {
-        currentDisplayChannel = useNoDisplay;
+    while(!Serial){
+        /* 
+         * Checks if Serial port is open,
+         * otherwise, the device opens the default serial port.
+         * See SHIELDLib.h baud_rate property
+        */ 
+        Serial.begin(baud_rate);    //Enables Serial baud
     }
-    */
 
-    _clk.beginClock();    
-    _clk.syncClock();
-    FastLED.addLeds<WS2811, pin_dataLED, RGB>(leds, NUM_LEDS);    
+    //Initializes all components
+    _intitOLEDDisplay(); //Opens the OLED Display
+    _initSD();          //Initializes the sd card component
+    _beginClock();      //Initializes the realtime clock component
+    _loadSystemConfiguration();     //Load System Configuration
+    _syncClock();   //Synchronizes RTC with NTP
+    FastLED.addLeds<WS2811, pin_dataLED, RGB>(leds, 1);     //Enables the RGB Led
+}
 
-    //display("SHIELD Device " + getDeviceType() + " now running.");
+/**
+ * @brief Opens the OLED Display
+ */
+void SHIELDDevice::_intitOLEDDisplay() {
+    if(!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+}
+
+/**
+ * @brief Initializes the SD Card Module.
+ */
+void SHIELDDevice::_initSD() {
+    pinMode(pin_csSD, OUTPUT);
+
+    while(!SD.begin(pin_csSD)) {
+        Serial.println("Unable to detect the SD Card module!");
+        delay(1000);
+    }
+}
+
+/**
+ * @brief Initializes SHIELD RTC Module. 
+ */
+void SHIELDDevice::_beginClock() {
+    while(!rtc.begin()) {
+    Serial.println("Couldn't find RTC!");
+    Serial.flush();
+    delay(10);
+  }
+  Serial.println("\nClock started.");
+}
+
+/**
+ * @brief Load system configuration from SD Card.
+ */
+void SHIELDDevice::_loadSystemConfiguration() {
+    char config_data[2000];
+    int index = 0;
+
+    file.open(dir_core);
+
+    while(!file) {
+        Serial.println("Unable to load settings!");
+        delay(1000);
+        file = SD.open(dir_core);
+    }
+
+    while(file.available()) {
+        config_data[index] = file.read();
+        index++;
+    }
+    data[i] = '\0';
+
+    //Decrypt raw data
+    //Deserialize JSON data
+
+    Serial.println("Settings successfully loaded into the cache.");
+    file.close();
+}
+
+/**
+ * @brief Synchronizes device clock with NTP Server.
+ */
+void SHIELDDevice::_syncClock {
+    Serial.println("Synchronizing date and time with servers...");
+    
+    _wf.connect("ARGUMIDO", "odimugra023026");
+    timeClient.begin();
+
+    int _timer = 0;
+    unsigned long _t;
+    do {
+        _t = _getNTPUnixTime(); //Connects to the NTP Server and gets Unix time
+        _timer += 1;
+    }while(_timer < 2);
+
+    rtc.adjust(DateTime(year(_t), month(_t), day(_t), hour(_t), minute(_t), second(_t)));
+    Serial.println("Clock successfully synchronized!");
+}
+
+/**
+ * @brief Connects to the defined NTP Server and retrieves the Unix time.
+ */
+unsigned long SHIELDDevice::_getNTPUnixTime() {    
+    timeClient.update();
+    return timeClient.getEpochTime();
 }
 
 /**
@@ -62,7 +153,7 @@ void Device::startDevice() {
  * 
  * @param _dchannel 
  */
-void Device::setDisplayChannel(DisplayChannel _dchannel) {
+void SHIELDDevice::setDisplayChannel(DisplayChannel _dchannel) {
     currentDisplayChannel = _dchannel;
 }
 
@@ -72,7 +163,7 @@ void Device::setDisplayChannel(DisplayChannel _dchannel) {
  * @param _dtFormat 
  * @return char* 
  */
-char* Device::getDeviceTime(DeviceTimeFormat _dtFormat) {
+char* SHIELDDevice::getDeviceTime(DeviceTimeFormat _dtFormat) {
     char* _dt = (char*)malloc(50);
     DateTime now = rtc.now();
     unsigned long _unixtime = now.unixtime();
@@ -92,9 +183,9 @@ char* Device::getDeviceTime(DeviceTimeFormat _dtFormat) {
 /**
  * @brief This lights up the builtin LED 
  */
-void Device::lightupLED() {
+void SHIELDDevice::lightupLED() {
     int _status = 1;    //Get the HealthStatus of the device
-
+ 
     switch(_status) {
         case 1:     //U0 - Healthy or Normal            
             leds[0] = CRGB(0, 255, 0);  //Green
@@ -125,7 +216,7 @@ void Device::lightupLED() {
  * 
  * @return char* 
  */
-char* Device::generateTag() {
+char* SHIELDDevice::generateTag() {
     /*
         SHIELD Protocol
 
@@ -152,57 +243,11 @@ char* Device::generateTag() {
     //End Preprocessing Block
     return _rawpayload;
 }
-#pragma endregion
 
-//=============================== Clock Functions ===============================
-#pragma region Clock
-/**
- * @brief Initializes SHIELD RTC Module. 
- */
-void Clock::beginClock() {
-    while(!rtc.begin()) {
-    Serial.println("Couldn't find RTC!");
-    Serial.flush();
-    delay(10);
-  }
-  Serial.println("\nClock started.");
-}
-
-/**
- * @brief Synchronizes device clock with NTP Server.
- */
-void Clock::syncClock() {
-    Serial.println("Synchronizing date and time with servers...");
-    
-    _wf.connect("ARGUMIDO", "odimugra023026");
-    timeClient.begin();
-
-    int _timer = 0;
-    unsigned long _t;
-    do {
-        _t = _getNTPUnixTime(); //Connects to the NTP Server and gets Unix time
-        _timer += 1;
-    }while(_timer < 2);
-
-    rtc.adjust(DateTime(year(_t), month(_t), day(_t), hour(_t), minute(_t), second(_t)));
-    Serial.println("Clock successfully synchronized!");
-}
-
-/**
- * @brief Connects to the defined NTP Server and retrieves the Unix time.
- */
-unsigned long Clock::_getNTPUnixTime() {    
-    timeClient.update();
-    return timeClient.getEpochTime();
-}
-#pragma endregion
-
-//=============================== Wi-Fi Functions ===============================
-#pragma region Wi-Fi
 /**
  * @brief Connects to a saved Wi-Fi.
  */
-void Wifi::connect(char* wifi_ssid, char* wifi_password) {
+void SHIELDDevice::_connect(char* wifi_ssid, char* wifi_password) {
     this -> _ssid = wifi_ssid;
     this -> _password = wifi_password;
 
@@ -220,44 +265,3 @@ void Wifi::connect(char* wifi_ssid, char* wifi_password) {
 
     Serial.println("\nConnected.");
 }
-//===============================================================================
-#pragma endregion
-
-#pragma region Tag
-//=============================== Health Status Functions ===============================
-/**
- * @brief Returns the device HealthStatus
- * 
- * @return HealthStatus 
- */
-HealthStatus Tag::getHealthStatus() {
-    return _currentHealthStatus;
-}
-
-/**
- * @brief Returns the contact number
- * 
- * @return char* 
- */
-char* Tag::getContactNumber() {
-    return _cnumber;
-}
-
-/**
- * @brief Sets the Contact number
- * 
- * @param _contactNumber 
- */
-void Tag::_setContactNumber(char* _contactNumber) {
-    _cnumber = _contactNumber;
-}
-
-/**
- * @brief Sets the current health status
- * 
- * @param _hstatus 
- */
-void Tag::_setHealthStatus (HealthStatus _hstatus){
-    //currentHealthStatus = _hstatus;
-}
-#pragma endregion

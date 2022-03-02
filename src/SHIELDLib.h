@@ -27,6 +27,8 @@
 #include <NTPClient.h>      //Network Time Protocol (NTP) Functions
 #include <ESP8266WiFi.h>    //NodeMCU ESP8266 Wi-Fi Functionalities
 #include <ArduinoJson.h>    //JSON in Arduino
+#include <Adafruit_GFX.h>   //Use in OLED Display
+#include <Adafruit_SSD1306.h>   //Use in OLED Display
 #include <SoftwareSerial.h> //Serial Communication
 #pragma endregion
 
@@ -42,6 +44,7 @@
 
 #pragma region File System
 #define slash '/'
+#define file_extension ".shield"
 
 #define folder_Data "Data"
 #define folder_Audit "Audit"
@@ -50,34 +53,42 @@
 #define folder_Memories "Memories"
 
 #define folder_System "System"
-#define folder_Docu "Documentation"
 #define folder_Core "Core"
+#define folder_Docu "Documentation"
+#define folder_Dumps "Dumps"
 
-#define fn_CoreConfiguration "BeaconConfig.shield"
+#define fn_CoreConfiguration "BeaconConfig"
 
 const String dir_audit = String() + folder_Data + slash + folder_Audit + slash;
 const String dir_circadian = String() + folder_Data + slash + folder_Circadian + slash;
 const String dir_cirrus = String() + folder_Data + slash + folder_CIRRUS + slash;
 const String dir_memories = String() + folder_Data + slash + folder_Memories + slash;
-const String dir_core = String() + folder_System + slash + folder_Core + slash + fn_CoreConfiguration;
+const String dir_memories = String() + folder_Data + slash + folder_Dumps + slash;
+const String dir_core = String() + folder_System + slash + folder_Core + slash + fn_CoreConfiguration + file_extension;
 #pragma endregion
 
 #pragma region Others
-#define NUM_LEDS 1
-CRGB leds[NUM_LEDS];
+CRGB leds[1];
+#define baud_rate 115200
+
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 32 // OLED display height, in pixels
 #pragma endregion
 
 /**
- * @brief SHIELD Device Types
+ * @brief Types of SHIELD files 
  */
-enum DeviceType {
-    BEACON,
-    NEURON
-} currentType;
+enum FileToSave {
+    AUDIT_DATA,
+    CIRCADIAN_DATA,
+    CIRRUS_DATA,
+    TRANSCRIPT_DATA,
+    DUMP_DATA,
+    CONFIG_DATA
+};
 
 /**
  * @brief SHIELD Timestamp Formats
- * 
  */
 enum DeviceTimeFormat {
     inUnix,
@@ -93,8 +104,8 @@ enum HealthStatus {
     U2, //Positive
     U3, //Recovered
     U4, //Dead
-    U5, //System Flag - General Flag
-    U6  //System Flag - Deactivated
+    U5, //System Flag - Deactivated
+    U6  //System Flag - General Flag
 };
 
 /**
@@ -103,66 +114,51 @@ enum HealthStatus {
 enum DisplayChannel {
     useBothDisplays, /*SYSTEM DEFAULT DISPLAY*/
     useSerialMonitor,
-    useOLEDDisplay,    
-    useNoDisplay
+    useOLEDDisplay
 } currentDisplayChannel;
 
-void display(char* _message);
+void display(String _message);
 
-class Device
+class SHIELDDevice
 {
     public:
-        Device(DeviceType _setdeviceAs);
+        SHIELDDevice(DeviceType _setdeviceAs);
         void startDevice();
-        char* generateTag();
-        void sendPayload(char* _payload);
+
+        void sendPayload();
         void decodePayload(String _payload);
 
         char* getDeviceTime(DeviceTimeFormat _dtFormat);
-        void lightupLED();
         void setDisplayChannel(DisplayChannel _dchannel);
-    private:
-};
 
-/**
- * @brief SHIELD Clock Module
- * 
- */
-class Clock
-{
-    public:
-        void beginClock();                  //Initializes the RTC Module
-        void syncClock();                    //Synchronizes local time with NTP Server
-        unsigned long getTimestamp();       //Provides the Unix-format Timestamp
-        
     private:
-        unsigned long _getNTPUnixTime();    //Gets the NTP Unix time
-};
-
-class Wifi
-{
-    public:
-        void connect(char* wifi_ssid, char* wifi_password);
-        
-    private:
+        //Private Variables
         char* _ssid;
-        char* _password;        
+        char* _password;
+
+        //File System
+        void _initSD();
+        void _save(FileToSave _filetosave, String _rawdata);
+        void _loadSystemConfiguration();
+
+        //OLED Display
+        void _intitOLEDDisplay();
+
+        //Clock
+        void _beginClock();                  //Initializes the RTC Module
+        void _syncClock();                   //Synchronizes local time with NTP Server
+        unsigned long _getTimestamp();       //Provides the Unix-format Timestamp
+        unsigned long _getNTPUnixTime();    //Gets the NTP Unix time
+        
+        //Wi-Fi
+        void _connect(char* wifi_ssid, char* wifi_password);
+
+        //Encryption
+        String _encrypt(String _rawData);
+        String _decrypt(String _rawData);
+
+        //Others
+        void _setbaudrate();
+        void _lightupLED();
 };
-
-class Tag
-{
-    public:
-        HealthStatus getHealthStatus();
-        void getCIRRUSVersion();
-        char* createGUID();
-        char* getContactNumber();
-        char* getSensorData();        
-
-    private:
-        void _setHealthStatus(HealthStatus _hstatus);
-        void _setContactNumber(char* _contactNumber);
-        char* _cnumber;
-        HealthStatus _currentHealthStatus;
-};
-
 #endif

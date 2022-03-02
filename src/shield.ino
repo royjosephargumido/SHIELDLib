@@ -11,12 +11,10 @@
 
 #include "SHIELDLib.h"
 
-Device device(BEACON);
+SHIELDDevice beacon;
 
 void setup() {
-    Serial.begin(115200);
-
-    device.startDevice();
+    beacon.startDevice();
 }
 
 void loop() {

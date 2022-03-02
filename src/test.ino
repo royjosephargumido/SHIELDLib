@@ -1,68 +1,33 @@
-#include <SD.h>
-#include <SPI.h>
-#include <ArduinoJson.h>
-#include <ESP8266WiFi.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
-#define pin_csSD D8         //SD Card Chip Select Pin in NodeMCU
-#define slash '/'
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 32 // OLED display height, in pixels
 
-#define folder_Data "Data"
-#define folder_Audit "Audit"
-#define folder_Circadian "Circadian"
-#define folder_CIRRUS "CIRRUS"
-#define folder_Memories "Memories"
-
-#define folder_System "System"
-#define folder_Docu "Documentation"
-#define folder_Core "Core"
-
-#define fn_CoreConfiguration "BeaconConfig.shield"
-
-const String dir_audit = String() + folder_Data + slash + folder_Audit + slash;
-const String dir_circadian = String() + folder_Data + slash + folder_Circadian + slash;
-const String dir_cirrus = String() + folder_Data + slash + folder_CIRRUS + slash;
-const String dir_memories = String() + folder_Data + slash + folder_Memories + slash;
-const String dir_core = String() + folder_System + slash + folder_Core + slash + fn_CoreConfiguration;
-
-File file;
-StaticJsonDocument<192> rawdata_config;
-
-/**
- * @brief Types of SHIELD files 
- * 
- */
-enum FileToSave {
-    AUDIT_DATA,
-    CIRCADIAN_DATA,
-    CIRRUS_DATA,
-    TRANSCRIPT_DATA,
-    DUMP_DATA,
-    CONFIG_DATA
-};
-
-void save(FileToSave _filetosave, String _rawdata) {
-    switch(_filetosave) {
-        case AUDIT_DATA:
-            break;
-
-        case CIRCADIAN_DATA:
-            break;
-
-        case CIRRUS_DATA:
-            break;
-
-        case TRANSCRIPT_DATA:
-            break;
-
-        case DUMP_DATA:
-            break;
-
-        case CONFIG_DATA:
-            break;
-    }
-}
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 void setup() {
+  Serial.begin(115200);
+
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+  Serial.println("System running.");
+  delay(2000);
+
+  // Clear the buffer.
+  display.clearDisplay();
+  
+  // Display Text
+  display.setTextSize(3);
+  display.setTextColor(WHITE);
+  display.setCursor(0,5);
+  display.println("SHIELD");
+  display.display();
+  display.startscrollright(0x00, 0x0F);
 }
 
 void loop() {
