@@ -55,7 +55,6 @@ void SHIELDDevice::startDevice() {
     _beginClock();      //Initializes the realtime clock component
     _loadSystemConfiguration();     //Load System Configuration
     _syncClock();   //Synchronizes RTC with NTP
-    FastLED.addLeds<WS2811, pin_dataLED, RGB>(leds, 1);     //Enables the RGB Led
 }
 
 /**
@@ -63,9 +62,9 @@ void SHIELDDevice::startDevice() {
  */
 void SHIELDDevice::_intitOLEDDisplay() {
     if(!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;);
-  }
+        Serial.println(F("SSD1306 allocation failed"));
+        for(;;);
+    }
 }
 
 /**
@@ -264,4 +263,49 @@ void SHIELDDevice::_connect(char* wifi_ssid, char* wifi_password) {
     }
 
     Serial.println("\nConnected.");
+}
+
+void SHIELDDevice::_displayDateTime() {
+    DateTime now = rtc.now();
+  
+    String HF = "";
+    int h = 0;
+    String m = "";
+    String s = "";
+
+    // COnverting 24H to 12H with AM/PM designation
+    if(now.hour() > 12) {
+        h = now.hour() % 12;
+        HF = " PM";
+    }else {
+        h = now.hour();
+        HF = " AM";
+    }
+
+    // Adding the '0' Padding to minute if minute is lesser than 10
+    if(now.minute() < 10) { m = "0" + (String)now.minute(); }
+    else { m = (String)now.minute(); }
+
+    // Adding the '0' Padding to second if second is lesser than 10
+    if(now.second() < 10) { s = "0" + (String)now.second(); }
+    else { s = (String)now.second(); }
+    
+    String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
+    String Time = (String)h + ':' + (String)m + ':' + (String)s + HF;
+    
+    Serial.println(Date);
+    Serial.println(Time);
+    Serial.println();
+
+    // Clear the buffer.
+    oled.clearDisplay();
+    
+    // Display Text
+    oled.setTextSize(2);
+    oled.setTextColor(WHITE);
+    oled.setCursor(0,0);
+    oled.println(Date);
+    oled.println(Time);
+    oled.display();
+    delay(1000);
 }

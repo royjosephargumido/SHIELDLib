@@ -19,7 +19,6 @@
 #include <SPI.h>            //Serial Peripheral Interface (SPI) Protocol for the SD Card Module
 #include <Wire.h>           //I2C Protocol for Two-Wire modules
 #include <RTClib.h>         //Real-time Clock (RTC) Functionalities
-#include <FastLED.h>        //WS2811 Led Notification
 #include <PCF8574.h>        //For the PCF8574 GPIO Expander
 #include <WiFiUdp.h>        //Wi-Fi User Datagram Protocol (UDP) for NTP Functionality
 #include <TimeLib.h>        //Date-Time Functionality
@@ -87,6 +86,12 @@ enum FileToSave {
     CONFIG_DATA
 };
 
+enum ErrorCodes {
+   INIT_SD_FAILED,
+   INIT_RTC_FAILED,
+   INIT_OLED_FAILED
+};
+
 /**
  * @brief SHIELD Timestamp Formats
  */
@@ -102,10 +107,7 @@ enum HealthStatus {
     U0, //Healthy or Normal
     U1, //Suspected
     U2, //Positive
-    U3, //Recovered
-    U4, //Dead
-    U5, //System Flag - Deactivated
-    U6  //System Flag - General Flag
+    U3, //Deactivated
 };
 
 /**
@@ -138,7 +140,7 @@ class SHIELDDevice
 
         //File System
         void _initSD();
-        void _save(FileToSave _filetosave, String _rawdata);
+        void _save(FileToSave _destinationFile, String _rawdata);
         void _loadSystemConfiguration();
 
         //OLED Display
@@ -147,18 +149,18 @@ class SHIELDDevice
         //Clock
         void _beginClock();                  //Initializes the RTC Module
         void _syncClock();                   //Synchronizes local time with NTP Server
+        void _displayDateTime();             //Displays Date and Time in the OLED Display
         unsigned long _getTimestamp();       //Provides the Unix-format Timestamp
         unsigned long _getNTPUnixTime();    //Gets the NTP Unix time
         
         //Wi-Fi
-        void _connect(char* wifi_ssid, char* wifi_password);
+        void _connecttoWifi();
 
         //Encryption
         String _encrypt(String _rawData);
         String _decrypt(String _rawData);
 
         //Others
-        void _setbaudrate();
-        void _lightupLED();
+        void _audioNotify();
 };
 #endif
