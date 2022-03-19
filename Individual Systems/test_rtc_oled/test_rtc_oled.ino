@@ -10,11 +10,6 @@
 DateTime now;     // Creates a DateTime object
 RTC_DS3231 rtc;   // Creates the RTC object
 
-const char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-const char monthNames[127][12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"};
-//====================================================
-
-
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
@@ -80,7 +75,17 @@ void getDateTime() {
   Serial.print(Time);
   Serial.println();
 
-  displayOLED(Date, Time);
+  // Clear the buffer.
+  display.clearDisplay();
+  
+  // Display Text
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  display.println(Date);
+  display.println(Time);
+  display.display();
+  
   delay(1000);
 }
 
@@ -100,5 +105,53 @@ void setup() {
 }
 
 void loop() {
-  getDateTime();
+  //getDateTime();
+
+  DateTime now = rtc.now();
+
+  String period = "";
+  int h = 0;
+
+  // Converts 24H to 12H with AM/PM designation
+  if(now.hour() > 12) {
+    h = now.hour() % 12;
+    period = " PM";
+  }else
+  {
+    h = now.hour();
+    period = " AM";
+  }
+
+  // Adding the '0' Padding to minute if minute is lesser than 10
+  String Min = (now.minute() < 10) ? "0" + (String)now.minute() : (String)now.minute();
+  
+  String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
+  String Time = (String)h + ':' + Min + period;
+
+  // Clear the buffer.
+  display.clearDisplay();
+  
+  // Display Text
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  display.println(Time);
+  display.println(Date);
+  display.display();
+  
+  delay(3000);
+
+  // Clear the buffer.
+  display.clearDisplay();
+  
+  // Display Text
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(11,8);
+  //display.print("NORMAL");
+  display.print("SUSPECTED");
+  //display.startscrollright(0x00, 0x0F);
+  display.display();
+  delay(5000);
+  //display.stopscroll();
 }

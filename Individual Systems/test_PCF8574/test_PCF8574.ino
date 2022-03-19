@@ -13,7 +13,6 @@ void setup() {
   Serial.begin(115200);
   
   pcf8574.pinMode(P0, OUTPUT);
-  pinMode(button, INPUT);
 
   Serial.print("Init pcf8574...");
   if (pcf8574.begin()){
@@ -26,17 +25,8 @@ void setup() {
 }
 
 void loop() {
-  temp = digitalRead(button);
-  
-  Serial.println(temp); 
-  if (temp == HIGH) {
-    pcf8574.digitalWrite(led, HIGH);
-    Serial.println("LED Turned ON");
-    delay(1000);
-  }
-  else {
-    pcf8574.digitalWrite(led, LOW);
-    Serial.println("LED Turned OFF");
-    delay(1000);
-  }
+  tone(P0, 1000); // Send 1KHz sound signal...
+  delay(1000);        // ...for 1 sec
+  noTone(P0);     // Stop sound...
+  delay(1000);        // ...for 1sec
 }
