@@ -13,7 +13,7 @@ Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
  * 
  * @param _deviceAs Set the device type either as BEACON or as NEURON.
  */
-SHIELDDevice::SHIELD() {
+SHIELD::SHIELD() {
     //Do nothing
 }
 
@@ -32,19 +32,19 @@ void SHIELD::startDevice() {
     }
 
     //Initializes all components
-    //_intitOLEDDisplay(); //Opens the OLED Display
-    _initSD();          //Initializes the sd card component
+    _intitOLEDDisplay(); //Opens the OLED Display
+    //_initSD();          //Initializes the sd card component
     _beginClock();      //Initializes the realtime clock component
     //_loadSystemConfiguration();     //Load System Configuration
     //_syncClock();   //Synchronizes RTC with NTP
-    //_displayDateTime();
+    _displayDateTime();
 
-    _save(AUDIT_DATA, "THIS IS A SAMPLE AUDIT DATA");
-    _save(CIRCADIAN_DATA, "THIS IS A SAMPLE AUDIT DATA");
-    _save(CIRRUS_DATA, "THIS IS A SAMPLE AUDIT DATA");
-    _save(TRANSCRIPT_DATA, "THIS IS A SAMPLE AUDIT DATA");
-    _save(DUMP_DATA, "THIS IS A SAMPLE AUDIT DATA");
-    _save(CONFIG_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    //_save(AUDIT_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    //_save(CIRCADIAN_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    //_save(CIRRUS_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    //_save(TRANSCRIPT_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    //_save(DUMP_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    //_save(CONFIG_DATA, "THIS IS A SAMPLE AUDIT DATA");
 
     Serial.println("Done");
 }
@@ -114,27 +114,27 @@ String SHIELD::_getFilename(FileToSave _SHIELDFile) {
 
     switch(_SHIELDFile) {
         case 0: //Audit Folder
-            _dest = dir_audit + slash + "audit_" + getDeviceTime(inUnix) + file_extension;
+            _dest = dir_audit + _slash + "audit_" + getDeviceTime(inUnix) + file_extension;
             break;
         
         case 1: //Circadian Folder
-            _dest = dir_circadian + slash + "circadian_" + getDeviceTime(inUnix) + file_extension;
+            _dest = dir_circadian + _slash + "circadian_" + getDeviceTime(inUnix) + file_extension;
             break;
 
         case 2: //Cirrus Folder
-            _dest = dir_cirrus + slash + "cirrus" + file_extension;
+            _dest = dir_cirrus + _slash + "cirrus" + file_extension;
             break;
 
         case 3: //Transcript Folder
-            _dest = dir_memories + slash + "transcript_" + getDeviceTime(inUnix) + file_extension;
+            _dest = dir_memories + _slash + "transcript_" + getDeviceTime(inUnix) + file_extension;
             break;
 
         case 4: //Dump Folder
-            _dest = dir_dumps + slash + "dumps_" + getDeviceTime(inUnix) + file_extension;
+            _dest = dir_dumps + _slash + "dumps_" + getDeviceTime(inUnix) + file_extension;
             break;
 
         case 5: //Config Folder
-            _dest = dir_core + slash + "beaconconfig" + file_extension;
+            _dest = dir_core + _slash + "beaconconfig" + file_extension;
             break;
     }
 

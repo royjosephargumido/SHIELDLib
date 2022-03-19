@@ -11,7 +11,7 @@
 
 #include "SHIELDLib.h"
 
-SHIELDDevice beacon;
+SHIELD beacon;
 
 int profile_valid_until = PROFILE_VALIDITY;     //Generation of Profile in minutes, using default
 uint32_t start_contact_trace = C3P_BEGIN;       //Start of Transcript Retrieval
