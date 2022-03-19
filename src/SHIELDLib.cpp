@@ -5,40 +5,22 @@ RTC_DS3231 rtc;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);
 File file;
-Wifi _wf;
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
-
-void display(String _message) {
-    switch(currentDisplayChannel) {
-        case useBothDisplays:   /*SYSTEM DEFAULT DISPLAY*/
-            Serial.print(_message);
-            //Display message in OLED
-            break;
-
-        case useSerialMonitor:
-            Serial.print(_message);
-            break;
-        
-        case useOLEDDisplay:
-            //Display message in OLED only
-            break;
-    }
-}
+Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 /**
  * @brief Initializes the device type which automatically configures the device based on its type. 
  * 
  * @param _deviceAs Set the device type either as BEACON or as NEURON.
  */
-SHIELDDevice::SHIELDDevice() {
+SHIELDDevice::SHIELD() {
     //Do nothing
 }
 
 /**
  * @brief Starts the SHIELD device. 
  */
-void SHIELDDevice::startDevice() {
+void SHIELD::startDevice() {
 
     while(!Serial){
         /* 
@@ -50,19 +32,29 @@ void SHIELDDevice::startDevice() {
     }
 
     //Initializes all components
-    _intitOLEDDisplay(); //Opens the OLED Display
+    //_intitOLEDDisplay(); //Opens the OLED Display
     _initSD();          //Initializes the sd card component
     _beginClock();      //Initializes the realtime clock component
-    _loadSystemConfiguration();     //Load System Configuration
-    _syncClock();   //Synchronizes RTC with NTP
+    //_loadSystemConfiguration();     //Load System Configuration
+    //_syncClock();   //Synchronizes RTC with NTP
+    //_displayDateTime();
+
+    _save(AUDIT_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    _save(CIRCADIAN_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    _save(CIRRUS_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    _save(TRANSCRIPT_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    _save(DUMP_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    _save(CONFIG_DATA, "THIS IS A SAMPLE AUDIT DATA");
+
+    Serial.println("Done");
 }
 
 /**
  * @brief Opens the OLED Display
  */
-void SHIELDDevice::_intitOLEDDisplay() {
-    if(!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
-        Serial.println(F("SSD1306 allocation failed"));
+void SHIELD::_intitOLEDDisplay() {
+    if(!deviceOLED.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
+        Serial.println(F("OLED Display failed to start."));
         for(;;);
     }
 }
@@ -70,7 +62,7 @@ void SHIELDDevice::_intitOLEDDisplay() {
 /**
  * @brief Initializes the SD Card Module.
  */
-void SHIELDDevice::_initSD() {
+void SHIELD::_initSD() {
     pinMode(pin_csSD, OUTPUT);
 
     while(!SD.begin(pin_csSD)) {
@@ -82,7 +74,7 @@ void SHIELDDevice::_initSD() {
 /**
  * @brief Initializes SHIELD RTC Module. 
  */
-void SHIELDDevice::_beginClock() {
+void SHIELD::_beginClock() {
     while(!rtc.begin()) {
     Serial.println("Couldn't find RTC!");
     Serial.flush();
@@ -94,38 +86,16 @@ void SHIELDDevice::_beginClock() {
 /**
  * @brief Load system configuration from SD Card.
  */
-void SHIELDDevice::_loadSystemConfiguration() {
-    char config_data[2000];
-    int index = 0;
-
-    file.open(dir_core);
-
-    while(!file) {
-        Serial.println("Unable to load settings!");
-        delay(1000);
-        file = SD.open(dir_core);
-    }
-
-    while(file.available()) {
-        config_data[index] = file.read();
-        index++;
-    }
-    data[i] = '\0';
-
-    //Decrypt raw data
-    //Deserialize JSON data
-
-    Serial.println("Settings successfully loaded into the cache.");
-    file.close();
+void SHIELD::_loadSystemConfiguration() {
 }
 
 /**
  * @brief Synchronizes device clock with NTP Server.
  */
-void SHIELDDevice::_syncClock {
+void SHIELD::_syncClock() {
     Serial.println("Synchronizing date and time with servers...");
     
-    _wf.connect("ARGUMIDO", "odimugra023026");
+    //_wf.connect("ARGUMIDO", "odimugra023026");
     timeClient.begin();
 
     int _timer = 0;
@@ -139,21 +109,61 @@ void SHIELDDevice::_syncClock {
     Serial.println("Clock successfully synchronized!");
 }
 
-/**
- * @brief Connects to the defined NTP Server and retrieves the Unix time.
- */
-unsigned long SHIELDDevice::_getNTPUnixTime() {    
-    timeClient.update();
-    return timeClient.getEpochTime();
+String SHIELD::_getFilename(FileToSave _SHIELDFile) {
+    String _dest = "";
+
+    switch(_SHIELDFile) {
+        case 0: //Audit Folder
+            _dest = dir_audit + slash + "audit_" + getDeviceTime(inUnix) + file_extension;
+            break;
+        
+        case 1: //Circadian Folder
+            _dest = dir_circadian + slash + "circadian_" + getDeviceTime(inUnix) + file_extension;
+            break;
+
+        case 2: //Cirrus Folder
+            _dest = dir_cirrus + slash + "cirrus" + file_extension;
+            break;
+
+        case 3: //Transcript Folder
+            _dest = dir_memories + slash + "transcript_" + getDeviceTime(inUnix) + file_extension;
+            break;
+
+        case 4: //Dump Folder
+            _dest = dir_dumps + slash + "dumps_" + getDeviceTime(inUnix) + file_extension;
+            break;
+
+        case 5: //Config Folder
+            _dest = dir_core + slash + "beaconconfig" + file_extension;
+            break;
+    }
+
+    return _dest;
+}
+
+void SHIELD::_save(FileToSave _destinationFile, String _rawdata) {
+    String __destination = _getFilename(_destinationFile);    
+
+    do {
+        file = SD.open(__destination, FILE_WRITE);
+        if(file) {
+            Serial.println("Unable to create the file!");
+            delay(500);
+        }
+    }while(!file);
+
+    file.print(_rawdata);
+    file.close();
+
+    Serial.println("Done writing.");
 }
 
 /**
- * @brief Set the display channel.
- * 
- * @param _dchannel 
+ * @brief Connects to the defined NTP Server and retrieves the Unix time.
  */
-void SHIELDDevice::setDisplayChannel(DisplayChannel _dchannel) {
-    currentDisplayChannel = _dchannel;
+unsigned long SHIELD::_getNTPUnixTime() {    
+    timeClient.update();
+    return timeClient.getEpochTime();
 }
 
 /**
@@ -162,7 +172,7 @@ void SHIELDDevice::setDisplayChannel(DisplayChannel _dchannel) {
  * @param _dtFormat 
  * @return char* 
  */
-char* SHIELDDevice::getDeviceTime(DeviceTimeFormat _dtFormat) {
+char* SHIELD::getDeviceTime(DeviceTimeFormat _dtFormat) {
     char* _dt = (char*)malloc(50);
     DateTime now = rtc.now();
     unsigned long _unixtime = now.unixtime();
@@ -180,72 +190,8 @@ char* SHIELDDevice::getDeviceTime(DeviceTimeFormat _dtFormat) {
 }
 
 /**
- * @brief This lights up the builtin LED 
- */
-void SHIELDDevice::lightupLED() {
-    int _status = 1;    //Get the HealthStatus of the device
- 
-    switch(_status) {
-        case 1:     //U0 - Healthy or Normal            
-            leds[0] = CRGB(0, 255, 0);  //Green
-            break;
-
-        case 2:     //U1 - Suspected
-            leds[0] = CRGB(255, 165, 0);  //Orange
-            break;
-
-        case 3:     //U2 - Positive
-            leds[0] = CRGB(255, 0, 0);  //Red
-            break;
-
-        case 4:     //U3 - Recovered
-            leds[0] = CRGB(0, 0, 255);  //Blue
-            break;
-
-        case 5:     //U5 and U6 - System Flag
-            leds[0] = CRGB(128,0,128);  //Purple
-            break;
-    }
-
-    FastLED.show();
-}
-
-/**
- * @brief This generates the tag.
- * 
- * @return char* 
- */
-char* SHIELDDevice::generateTag() {
-    /*
-        SHIELD Protocol
-
-        1. Preprocessing Block: Converts raw data to JSON
-        2. Encryption: Encrypts JSON data
-        3. Error-Correction: Adds error correction to the payload
-    */
-
-    //Performs the protocol PREPROCESSING BLOCK
-    /*
-    StaticJsonDocument<384> doc;
-    char* _rawpayload;
-
-    doc["HS"] = "U3";
-    doc["CV"] = 1351824120;
-    doc["MA"] = "506583791D47";
-    doc["CN"] = "9971432991";
-    doc["CT"] = "1642088234";
-    doc["ET"] = "1642089134";
-    doc["IV"] = "y$B&E)H@McQfThWmZq4t7w!z%C*F-JaN";
-    doc["IK"] = "3s6v9y$B&E)H@McQfTjWnZr4u7w!z%C*";
-    */
-    serializeJson(doc, _rawpayload);
-    //End Preprocessing Block
-    return _rawpayload;
-}
-
-/**
  * @brief Connects to a saved Wi-Fi.
- */
+ *
 void SHIELDDevice::_connect(char* wifi_ssid, char* wifi_password) {
     this -> _ssid = wifi_ssid;
     this -> _password = wifi_password;
@@ -264,48 +210,51 @@ void SHIELDDevice::_connect(char* wifi_ssid, char* wifi_password) {
 
     Serial.println("\nConnected.");
 }
-
-void SHIELDDevice::_displayDateTime() {
+*/
+void SHIELD::_displayDateTime() {
     DateTime now = rtc.now();
-  
-    String HF = "";
-    int h = 0;
-    String m = "";
-    String s = "";
 
-    // COnverting 24H to 12H with AM/PM designation
+    String period = "";
+    int h = 0;
+
+    // Converts 24H to 12H with AM/PM designation
     if(now.hour() > 12) {
         h = now.hour() % 12;
-        HF = " PM";
-    }else {
+        period = " PM";
+    }else
+    {
         h = now.hour();
-        HF = " AM";
+        period = " AM";
     }
 
     // Adding the '0' Padding to minute if minute is lesser than 10
-    if(now.minute() < 10) { m = "0" + (String)now.minute(); }
-    else { m = (String)now.minute(); }
-
-    // Adding the '0' Padding to second if second is lesser than 10
-    if(now.second() < 10) { s = "0" + (String)now.second(); }
-    else { s = (String)now.second(); }
+    String Min = (now.minute() < 10) ? "0" + (String)now.minute() : (String)now.minute();
     
     String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
-    String Time = (String)h + ':' + (String)m + ':' + (String)s + HF;
-    
-    Serial.println(Date);
-    Serial.println(Time);
-    Serial.println();
+    String Time = (String)h + ':' + Min + period;
 
     // Clear the buffer.
-    oled.clearDisplay();
+    deviceOLED.clearDisplay();
     
     // Display Text
-    oled.setTextSize(2);
-    oled.setTextColor(WHITE);
-    oled.setCursor(0,0);
-    oled.println(Date);
-    oled.println(Time);
-    oled.display();
-    delay(1000);
+    deviceOLED.setTextSize(2);
+    deviceOLED.setTextColor(WHITE);
+    deviceOLED.setCursor(0,0);
+    deviceOLED.println(Time);
+    deviceOLED.println(Date);
+    deviceOLED.display();
+    
+    delay(3000);
+
+    // Clear the buffer.
+    deviceOLED.clearDisplay();
+    
+    // Display Text
+    deviceOLED.setTextSize(2);
+    deviceOLED.setTextColor(WHITE);
+    deviceOLED.setCursor(11,8);
+    //display.print("NORMAL");
+    deviceOLED.print("SUSPECTED");
+    deviceOLED.display();
+    //delay(5000);
 }
