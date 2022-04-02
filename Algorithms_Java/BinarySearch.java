@@ -3,7 +3,7 @@ package Algorithms_Java;
 public class BinarySearch{
     // Sorted array
     
-    static int transcript_array[] = {1645419600, 1645506000, 1645592400, 1645678800, 1645765200,
+    /*static int transcript_array[] = {1645419600, 1645506000, 1645592400, 1645678800, 1645765200,
                     1645851600, 1645938000, 1646024400, 1646110800, 1646197200,
                     1646283600, 1646370000, 1646456400, 1646542800, 1646629200,
                     1646715600, 1646802000, 1646888400, 1646974800, 1647061200,
@@ -11,9 +11,9 @@ public class BinarySearch{
                     1647579600, 1647666000, 1647752400, 1647838800, 1647925200, 
                     1648011600, 1648098000, 1648184400, 1648270800, 1648357200,
                     1648443600, 1648530000, 1648616400, 1648702800};
-                    
-    /*
-    static int a[] = {3, 5, 7, 8,
+        */            
+    
+    static int transcript_array[] = {3, 5, 7, 8,
         9, 10, 11, 13, 17,
         18, 19, 20, 21, 22,
         31, 32, 35, 37, 38,
@@ -21,7 +21,7 @@ public class BinarySearch{
         44, 45, 46, 47, 48, 
         49, 50, 51, 52, 53,
         54, 55, 56, 57, 59};
-        */
+        
     static int sizeofTranscript = transcript_array.length;
 
     /**
@@ -136,8 +136,8 @@ public class BinarySearch{
 
     public static void main(String[] args)
     {
-        //int onset = 45;
-        int onset = 1645592401;
+        int onset = 58;
+        //int onset = 1645592401;
         System.out.println("Onset: " + onset);
 
         if(inRange(onset)) {
