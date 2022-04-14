@@ -1,17 +1,14 @@
 {
     "files.associations": {
-        "compare": "cpp",
-        "functional": "cpp",
-        "memory": "cpp",
-        "tuple": "cpp",
-        "type_traits": "cpp",
-        "utility": "cpp",
-        "xmemory": "cpp",
-        "xstring": "cpp",
-        "xtr1common": "cpp",
-        "xutility": "cpp",
-        "system_error": "cpp",
-        "xlocmon": "cpp",
-        "xlocnum": "cpp"
+        "cstddef": "cpp",
+        "string": "cpp",
+        "array": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "unordered_map": "cpp",
+        "vector": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp",
+        "ranges": "cpp"
     }
 }
