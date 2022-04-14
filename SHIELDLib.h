@@ -118,6 +118,9 @@ class SHIELDLib {
         void displayError(ErrorCodes err);
         void displayMessage(char* line1, char* line2);
 
+        //File System
+        void save(FileToSave _destinationFile, String _rawdata);
+        String getFilename(FileToSave _SHIELDFile);
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
         //TrueRandom Number Generator (TRNG)

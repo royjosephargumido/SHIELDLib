@@ -1,5 +1,6 @@
 #include "SHIELDLib.h"
 
+File file;
 RTC_DS3231 rtc;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);
@@ -11,7 +12,13 @@ void SHIELDLib::startDevice() {
     shield.beginClock();    // Begins the clock
     
     shield.syncClock();
-    
+
+    save(AUDIT_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    save(CIRCADIAN_DATA, "THIS IS A SAMPLE CIRCADIAN DATA");
+    save(CIRRUS_DATA, "THIS IS A SAMPLE CIRRUS DATA");
+    save(TRANSCRIPT_DATA, "THIS IS A SAMPLE TRANSCRIPT DATA");
+    save(DUMP_DATA, "THIS IS A SAMPLE DUMP DATA");
+    save(CONFIG_DATA, "THIS IS A SAMPLE CONFIG DATA");
 }
 
 void SHIELDLib::displayError(ErrorCodes err) {
@@ -81,11 +88,10 @@ void SHIELDLib::displayDateTime() {
 
         // Adding the '0' Padding to minute if minute is lesser than 10
         String Min = (now.minute() < 10) ? "0" + (String)now.minute() : (String)now.minute();
-        String Sec = (now.second() < 10) ? "0" + (String)now.second() : (String)now.second();
-        String min_sec = (String)':' + Min + ':' + Sec;
+        //String Sec = (now.second() < 10) ? "0" + (String)now.second() : (String)now.second();
 
         String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
-        String Time = (now.hour() > 12) ? (String)(now.hour() % 12) + min_sec + " PM" : (String)now.hour() + min_sec + " AM";
+        String Time = (now.hour() > 12) ? (String)(now.hour() % 12) + ':' + Min + " PM" : (String)now.hour() + ':' + Min + " AM";
 
         char _time[12];
         char _date[11];
@@ -126,6 +132,58 @@ void SHIELDLib::connecttoWIFI(char* wifi_ssid, char* wifi_password) {
     WiFi.mode(WIFI_STA);
     WiFi.begin(wifi_ssid, wifi_password);
     while (WiFi.status() != WL_CONNECTED){}
+}
+
+String SHIELDLib::getFilename(FileToSave _SHIELDFile) {
+    String _dest = "";
+    switch(_SHIELDFile){
+        case 0: //Audit Folder
+            _dest = dir_audit + _slash + "audit_" + getSequenceNumber() + file_extension;
+            break;
+        
+        case 1: //Circadian Folder
+            _dest = dir_circadian + _slash + "circadian_" + getSequenceNumber() + file_extension;
+            break;
+
+        case 2: //Cirrus Folder
+            _dest = dir_cirrus + _slash + "cirrus" + file_extension;
+            break;
+
+        case 3: //Transcript Folder
+            _dest = dir_memories + _slash + "transcript_" + getSequenceNumber() + file_extension;
+            break;
+
+        case 4: //Dump Folder
+            _dest = dir_dumps + _slash + "dumps_" + getSequenceNumber() + file_extension;
+            break;
+
+        case 5: //Config Folder
+            _dest = dir_core + _slash + "beaconconfig" + file_extension;
+            break;
+
+        case 6: //Profile Folder
+            //
+            break
+    }
+
+    return _dest;
+}
+
+void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
+    String __destination = getFilename(_destinationFile);    
+
+    do {
+        file = SD.open(__destination, FILE_WRITE);
+        if(file) {
+            Serial.println("Unable to create the file!");
+            delay(500);
+        }
+    }while(!file);
+
+    file.print(_rawdata);
+    file.close();
+
+    Serial.println("Done writing.");
 }
 
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
