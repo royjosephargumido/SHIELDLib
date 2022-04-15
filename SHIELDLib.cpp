@@ -11,14 +11,14 @@ void SHIELDLib::startDevice() {
     shield.initSDCard();    // Initializes the SD Card module
     shield.beginClock();    // Begins the clock
     
-    shield.syncClock();
+    //syncClock();
 
-    save(AUDIT_DATA, "THIS IS A SAMPLE AUDIT DATA");
-    save(CIRCADIAN_DATA, "THIS IS A SAMPLE CIRCADIAN DATA");
-    save(CIRRUS_DATA, "THIS IS A SAMPLE CIRRUS DATA");
-    save(TRANSCRIPT_DATA, "THIS IS A SAMPLE TRANSCRIPT DATA");
-    save(DUMP_DATA, "THIS IS A SAMPLE DUMP DATA");
-    save(CONFIG_DATA, "THIS IS A SAMPLE CONFIG DATA");
+    //save(AUDIT_DATA, "THIS IS A SAMPLE AUDIT DATA");
+    //save(CIRCADIAN_DATA, "THIS IS A SAMPLE CIRCADIAN DATA");
+    //save(CIRRUS_DATA, "THIS IS A SAMPLE CIRRUS DATA");
+    //save(TRANSCRIPT_DATA, "THIS IS A SAMPLE TRANSCRIPT DATA");
+    //save(DUMP_DATA, "THIS IS A SAMPLE DUMP DATA");
+    //save(CONFIG_DATA, "THIS IS A SAMPLE CONFIG DATA");
 }
 
 void SHIELDLib::displayError(ErrorCodes err) {
@@ -50,7 +50,7 @@ void SHIELDLib::displayMessage(char* line1, char* line2) {
 char* SHIELDLib::getSequenceNumber() {
     char* _dt = (char*)malloc(50);
     DateTime now = rtc.now();
-    unsigned long _unixtime = now.unixtime();
+    uint32_t _unixtime = now.unixtime();
 
     ltoa(_unixtime, _dt, 10);
     return _dt;
@@ -91,7 +91,14 @@ void SHIELDLib::displayDateTime() {
         //String Sec = (now.second() < 10) ? "0" + (String)now.second() : (String)now.second();
 
         String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
-        String Time = (now.hour() > 12) ? (String)(now.hour() % 12) + ':' + Min + " PM" : (String)now.hour() + ':' + Min + " AM";
+        
+        String Time = "";
+        if(now.hour() > 12) {   //Check if PM
+            Time = (String)(now.hour() % 12) + ':' + Min + " PM";
+        } else {    // Time is AM
+            Time = (now.hour() == 0) ? "12" : (String)now.hour();            
+            Time += ':' + Min + " AM";
+        }
 
         char _time[12];
         char _date[11];
@@ -109,7 +116,7 @@ void SHIELDLib::syncClock() {
     DateTime now = rtc.now();
     int _unixtime = now.unixtime();
 
-    if(_unixtime < 1649721600) {
+    if(_unixtime < code_uploaded_unix) {
         displayMessage("Clock", "Syncing...");
 
         shield.connecttoWIFI("ODIMUGRA", "odimugra023026");
@@ -162,15 +169,15 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile) {
             break;
 
         case 6: //Profile Folder
-            //
-            break
+            _dest = dir_profile + _slash + "profile_" + getSequenceNumber() + file_extension;
+            break;
     }
 
     return _dest;
 }
 
 void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
-    String __destination = getFilename(_destinationFile);    
+    String __destination = getFilename(_destinationFile);
 
     do {
         file = SD.open(__destination, FILE_WRITE);
@@ -184,6 +191,57 @@ void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
     file.close();
 
     Serial.println("Done writing.");
+}
+
+/* SHIELD's CORE FUNCTIONS */
+
+String SHIELDLib::generateCircadian() {
+    String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
+    save(CIRCADIAN_DATA, circadian);
+    return circadian;
+}
+
+String SHIELDLib::getProfile() {
+    // Generates the PUK, TUK, and the PID
+
+    // PUK
+    unsigned char salt_puk[MAX_BLOCKS] = {};
+    trng(salt_puk, 16);                                        //Generate the salts for PUK using TRNG
+    String puk = perfHKDF(CIRCADIAN, salt_puk, INFO_PUK, 16);  //Generate the PUK using HKDF
+    stringtobyte(PUK, puk);                                    //Store the generated PUK
+
+    // TUK
+    unsigned char salt_tuk[MAX_BLOCKS] = {};
+    trng(salt_tuk, 16);                                        //Generate the salts for TUK using TRNG
+    String tuk = perfHKDF(CIRCADIAN, salt_tuk, INFO_TUK, 16);  //Generate the TUK using HKDF
+    stringtobyte(TUK, tuk);                                    //Store the generated TUK
+
+    //PID
+    String pid = perfHKDF(CIRCADIAN, PUK, INFO_PID, 16);       //Generate the PID using HKDF
+    stringtobyte(PID, pid);                                    //Store the generated PID
+
+    //Encrpyt the PUK using the Circadian and the TUK
+    String cipher = encrypt(CIRCADIAN, PUK, TUK);              // Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
+    byte cipher_data[16];
+    stringtobyte(cipher_data, cipher);                         //Store the generated ciphertext as bytes
+
+    byte testPUk[MAX_BLOCKS];
+    stringtobyte(testPUk, cipher);                             //Converts the given ciphertext into a byte array
+
+    // Encodes the ciphertext to Base64
+    unsigned char base64[45];
+
+    // encode_base64() places a null terminator automatically, because the output is a string
+    unsigned int base64_length = encode_base64((unsigned char*)cipher.c_str(), strlen(cipher.c_str()) + 1, base64);
+
+    //Serial.println(strlen(cipher.c_str()));
+    //Serial.print("Base64 Size:\t\t");
+    //Serial.println(base64_length);
+    //Serial.print("Base64:\t\t");
+    //Serial.println((char *) base64);
+
+    save(PROFILE_DATA, (char*)base64);
+    return (char*)base64;
 }
 
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
@@ -274,7 +332,7 @@ void SHIELDLib::stringtobyte(uint8_t* location, String rawdata) {
     rawdata.toCharArray(buffer, MAX_BLOCKS * 2 + 1);
 
     int pos = 0;
-    for(int index = 0; index < 32; pos++, ++index) {
+    for(int index = 0; index < MAX_BLOCKS * 2; pos++, ++index) {
         auto getNum = [](char c){ return c > '9' ? c - 'a' + 10 : c - '0'; };
         location[pos] = (getNum((char)buffer[index]) << 4) + getNum((char)buffer[++index]);
     }

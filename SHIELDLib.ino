@@ -1,13 +1,5 @@
 #include "SHIELDLib.h"
 
-byte CIRCADIAN[MAX_BLOCKS];   // Circadian
-byte PUK[MAX_BLOCKS];         // Profile Unlocking Key
-byte TUK[MAX_BLOCKS];         // Transcript Unlocking Key
-byte PID[MAX_BLOCKS];         // Profile Identifier
-
-unsigned char salt_puk[16] = {};
-unsigned char salt_tuk[16] = {};
-
 void setup() {
     Serial.begin(115200);
 
@@ -15,6 +7,9 @@ void setup() {
 
     Serial.println();
     Serial.println();
+
+    Serial.println(shield.generateCircadian());
+    Serial.println(shield.getProfile());
 
     /*
 

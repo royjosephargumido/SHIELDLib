@@ -37,6 +37,7 @@
 #define folder_Circadian        "Circadian"
 #define folder_CIRRUS           "CIRRUS"
 #define folder_Memories         "Memories"
+#define folder_Profile          "Profile"
 #define folder_System           "System"
 #define folder_Core             "Core"
 #define folder_Docu             "Documentation"
@@ -54,6 +55,7 @@ const String dir_cirrus = String() + folder_Data + _slash + folder_CIRRUS;
 const String dir_dumps = String() + folder_Data + _slash + folder_Dumps;
 const String dir_memories = String() + folder_Data + _slash + folder_Memories;
 const String dir_core = String() + folder_System + _slash + folder_Core;
+const String dir_profile = String() + folder_Data + _slash + folder_Profile;
 
 enum FileToSave {
     AUDIT_DATA,
@@ -81,6 +83,9 @@ class SHIELDLib {
         char* getSequenceNumber();
         void displayDateTime();
 
+        String generateCircadian();
+        String getProfile();
+
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
         //Converts a byte array to its hexadecima/string representation
@@ -105,6 +110,12 @@ class SHIELDLib {
         unsigned int decode_base64(unsigned char input[], unsigned char output[]);
         
     private:
+        byte CIRCADIAN[MAX_BLOCKS];   // Circadian
+        byte PUK[MAX_BLOCKS];         // Profile Unlocking Key
+        byte TUK[MAX_BLOCKS];         // Transcript Unlocking Key
+        byte PID[MAX_BLOCKS];         // Profile Identifier
+
+        int code_uploaded_unix = 1649721600;
         String lastsaved_time;
         String lastsaved_date;
         
@@ -121,6 +132,7 @@ class SHIELDLib {
         //File System
         void save(FileToSave _destinationFile, String _rawdata);
         String getFilename(FileToSave _SHIELDFile);
+
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
         //TrueRandom Number Generator (TRNG)
