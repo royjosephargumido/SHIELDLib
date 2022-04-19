@@ -1,12 +1,6 @@
 #ifndef SHIELDLIB_h
 #define SHIELDLIB_h
 
-#include "src/Crypto.h"
-#include "src/SHA256.h"
-#include "src/HKDF.h"
-#include "src/AES.h"
-#include "src/CTR.h"
-
 #include <Arduino.h>
 #include <inttypes.h>
 
@@ -24,11 +18,21 @@
 #include <Adafruit_SSD1306.h>   //Use in OLED Display
 #include <SoftwareSerial.h>     //Serial Communication
 
+#include "src/Crypto.h"
+#include "src/SHA256.h"
+#include "src/HKDF.h"
+#include "src/AES.h"
+#include "src/CTR.h"
+
+// Utilities
 #define MAX_BLOCKS              16                      //Number of bytes
 #define pin_csSD                D8                      //SD Card Chip Select Pin
-//Network Time Protocol
+#define baud_rate               115200                  //Default Baud
+#define SCREEN_WIDTH            128                     // OLED display width, in pixels
+#define SCREEN_HEIGHT           32                      // OLED display height, in pixels
 #define UTC_OFFSET_IN_SECONDS   28800                   //Formats the time in GMT+08:00 Manila, Philippines
 #define NTP_SERVER_ADDRESS      "asia.pool.ntp.org"     //Network Time Protocol (NTP) Server
+
 //File System
 #define _slash                   '/'
 #define file_extension          ".shield"
@@ -40,22 +44,23 @@
 #define folder_Profile          "Profile"
 #define folder_System           "System"
 #define folder_Core             "Core"
-#define folder_Docu             "Documentation"
 #define folder_Dumps            "Dumps"
 #define fn_CoreConfiguration    "BeaconConfig"
-//Baud
-#define baud_rate           115200
-//OLED
-#define SCREEN_WIDTH        128 // OLED display width, in pixels
-#define SCREEN_HEIGHT       32  // OLED display height, in pixels
 
-const String dir_audit = String() + folder_Data + _slash + folder_Audit;
-const String dir_circadian = String() + folder_Data + _slash + folder_Circadian;
-const String dir_cirrus = String() + folder_Data + _slash + folder_CIRRUS;
-const String dir_dumps = String() + folder_Data + _slash + folder_Dumps;
-const String dir_memories = String() + folder_Data + _slash + folder_Memories;
-const String dir_core = String() + folder_System + _slash + folder_Core;
-const String dir_profile = String() + folder_Data + _slash + folder_Profile;
+const String dir_audit      = String() + folder_Data + _slash + folder_Audit;
+const String dir_circadian  = String() + folder_Data + _slash + folder_Circadian;
+const String dir_cirrus     = String() + folder_Data + _slash + folder_CIRRUS;
+const String dir_dumps      = String() + folder_Data + _slash + folder_Dumps;
+const String dir_memories   = String() + folder_Data + _slash + folder_Memories;
+const String dir_core       = String() + folder_System + _slash + folder_Core;
+const String dir_profile    = String() + folder_Data + _slash + folder_Profile;
+
+// Cryptography
+int PROFILE_INTERVAL            = 15;                               //The interval in which the next profile is issued in minutes
+const int CIRCADIAN_PERIOD      = (60 / PROFILE_INTERVAL) * 24;     //The interval in which the next circadian is issued (in number of Profile_Interval per 24 Hrs)
+unsigned long PROFILE_PERIOD    = PROFILE_INTERVAL * 60000;         //Number of milliseconds in PROFILE_INTERVAL as the Profile_Period
+int NumOfIssuedProfile          = 0;
+unsigned long runtime;
 
 enum FileToSave {
     AUDIT_DATA,
@@ -72,70 +77,60 @@ enum ErrorCodes {
     SD_MISSING,
 };
 
-// HKDF INFO
-unsigned char const INFO_PUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X55, 0X4b};    //SHIELD-PUK
-unsigned char const INFO_TUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X54, 0X55, 0X4b};    //SHIELD-TUK
-unsigned char const INFO_PID[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X49, 0X44};    //SHIELD-PID
-
 class SHIELDLib {
     public:
+        //Constructor
+        ICACHE_FLASH_ATTR SHIELDLib();
+
+        //Core functionalities
         void startDevice();
-        char* getSequenceNumber();
         void displayDateTime();
+        void protocolbegin();
+        void listen();
 
-        String generateCircadian();
-        String getProfile();
-
-        /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
-
-        //Converts a byte array to its hexadecima/string representation
-        String bytetostring(byte array[]);
-
-        //Converts a string to a byte array
-        void stringtobyte(uint8_t* location, String rawdata);
-
-        //TrueRandom Number Generator (TRNG)
-        ICACHE_FLASH_ATTR SHIELDLib();	
-        ICACHE_FLASH_ATTR String trng(uint8_t* location, int outputLength);
-
-        // Hash Key Derivation Function based on HMAC-SHA256
-        String perfHKDF(const unsigned char *key, const unsigned char *salt, const unsigned char *info, size_t outputlength);
-
-        // AES128-CTR (Advanced Encryption Standard - 128 bits on Counter Mode)
-        String encrypt(const unsigned char *key, const unsigned char *data, const unsigned char *nonce);
-        String decrypt(const unsigned char *key, const unsigned char *data, const unsigned char *nonce);
-
-        //Base64
-        unsigned int encode_base64(unsigned char input[], unsigned int input_length, unsigned char output[]);
-        unsigned int decode_base64(unsigned char input[], unsigned char output[]);
-        
     private:
         byte CIRCADIAN[MAX_BLOCKS];   // Circadian
-        byte PUK[MAX_BLOCKS];         // Profile Unlocking Key
-        byte TUK[MAX_BLOCKS];         // Transcript Unlocking Key
-        byte PID[MAX_BLOCKS];         // Profile Identifier
-
-        int code_uploaded_unix = 1649721600;
-        String lastsaved_time;
-        String lastsaved_date;
+        // HKDF INFO
+        unsigned char const INFO_PUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X55, 0X4b};    //SHIELD-PUK
+        unsigned char const INFO_TUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X54, 0X55, 0X4b};    //SHIELD-TUK
+        unsigned char const INFO_PID[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X49, 0X44};    //SHIELD-PID
         
+        // Hardware components
         void initOLED();
         void initSDCard();
         bool beginClock();
 
+        // Utility
         void syncClock();
         void connecttoWIFI(char* wifi_ssid, char* wifi_password);
-
         void displayError(ErrorCodes err);
         void displayMessage(char* line1, char* line2);
 
-        //File System
+        // File System
         void save(FileToSave _destinationFile, String _rawdata);
-        String getFilename(FileToSave _SHIELDFile);
+        String getFilename(FileToSave _SHIELDFile, char* SequenceNumber);
+
 
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
-        //TrueRandom Number Generator (TRNG)
+        // SequenceNumber
+        char* getSequenceNumber();
+        // TrueRandom Number Generator (TRNG)
+        ICACHE_FLASH_ATTR String trng(uint8_t* location, int outputLength);
+        // Hash Key Derivation Function based on HMAC-SHA256
+        String perfHKDF(const unsigned char *key, const unsigned char *salt, const unsigned char *info, size_t outputlength);
+        // AES128-CTR (Advanced Encryption Standard - 128 bits on Counter Mode)
+        String encrypt(const unsigned char *key, const unsigned char *data, const unsigned char *nonce);
+        String decrypt(const unsigned char *key, const unsigned char *data, const unsigned char *nonce);
+        // Base64
+        unsigned int encode_base64(unsigned char input[], unsigned int input_length, unsigned char output[]);
+        unsigned int decode_base64(unsigned char input[], unsigned char output[]);
+
+        // Byte and String utilities
+        String bytetostring(byte array[]);                      //Converts a byte array to its hexadecima/string representation
+        void stringtobyte(uint8_t* location, String rawdata);   //Converts a string to a byte array
+
+        // TrueRandom Number Generator (TRNG)
         unsigned long lastYield;
         ICACHE_FLASH_ATTR int randomBit();              // Generates a random bit
         ICACHE_FLASH_ATTR int whiten();                 // Software whiten the generated random bit

@@ -12,13 +12,66 @@ void SHIELDLib::startDevice() {
     shield.beginClock();    // Begins the clock
     
     //syncClock();
+}
 
-    //save(AUDIT_DATA, "THIS IS A SAMPLE AUDIT DATA");
-    //save(CIRCADIAN_DATA, "THIS IS A SAMPLE CIRCADIAN DATA");
-    //save(CIRRUS_DATA, "THIS IS A SAMPLE CIRRUS DATA");
-    //save(TRANSCRIPT_DATA, "THIS IS A SAMPLE TRANSCRIPT DATA");
-    //save(DUMP_DATA, "THIS IS A SAMPLE DUMP DATA");
-    //save(CONFIG_DATA, "THIS IS A SAMPLE CONFIG DATA");
+void SHIELDLib::protocolbegin() {
+    //Issues new Circadian
+    if(NumOfIssuedProfile == CIRCADIAN_PERIOD) {
+        String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
+        runtime = millis(); //Begins the runtime for the PROFILE_PERIOD
+        save(CIRCADIAN_DATA, circadian);
+        Serial.println("=========================================");
+        Serial.println("CIRCADIAN:\t" + circadian);
+    }
+
+    //Checks if the number of minutes where the device runs (in milliseconds) triggers the PROFILE_PERIOD
+    //then issues the new Profile
+    if(runtime == PROFILE_PERIOD) {
+        // PUK
+        unsigned char salt_puk[MAX_BLOCKS] = {};
+        trng(salt_puk, 16);                                         //Generate the salts for PUK using TRNG
+        String puk = perfHKDF(CIRCADIAN, salt_puk, INFO_PUK, 16);   //Generate the PUK using HKDF
+        byte PUK[MAX_BLOCKS];                                       // Profile Unlocking Key
+        stringtobyte(PUK, puk);                                     //Store the generated PUK
+
+        // TUK
+        unsigned char salt_tuk[MAX_BLOCKS] = {};
+        trng(salt_tuk, 16);                                         //Generate the salts for TUK using TRNG
+        String tuk = perfHKDF(CIRCADIAN, salt_tuk, INFO_TUK, 16);   //Generate the TUK using HKDF
+        byte TUK[MAX_BLOCKS];                                       // Transcript Unlocking Key
+        stringtobyte(TUK, tuk);                                     //Store the generated TUK
+
+        //PID
+        String pid = perfHKDF(CIRCADIAN, PUK, INFO_PID, 16);        //Generate the PID using HKDF
+        byte PID[MAX_BLOCKS];                                       // Profile Identifier
+        stringtobyte(PID, pid);                                     //Store the generated PID
+
+        //Encrpyt the PUK using the Circadian and the TUK
+        String cipher = encrypt(CIRCADIAN, PUK, TUK);               // Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
+        uint32_t CV = getCIRRUSVersion();
+        cipher = String(CV) + '-' + cipher;
+
+        // Encodes the ciphertext to Base64
+        unsigned char base64[61];
+        // encode_base64() places a null terminator automatically, because the output is a string
+        unsigned int base64_length = encode_base64((unsigned char*)cipher.c_str(), strlen(cipher.c_str()) + 1, base64);
+
+        Serial.println("PUK:\t" + puk);
+        Serial.println("TUK:\t" + tuk);
+        Serial.println("PID:\t" + pid);
+        Serial.println("=========================================");
+        Serial.println("Ciphertext:\t" + cipher);
+        Serial.println("PUK:\t\t" + puk);
+        Serial.println("=========================================");
+        Serial.println(strlen(cipher.c_str()));
+        Serial.print("Base64 Size:\t\t");
+        Serial.println(base64_length);
+        Serial.print("Base64:\t\t");
+        Serial.println((char *) base64);
+
+        save(PROFILE_DATA, (char*)base64);
+        NumOfIssuedProfile++;
+    }
 }
 
 void SHIELDLib::displayError(ErrorCodes err) {
@@ -58,7 +111,7 @@ char* SHIELDLib::getSequenceNumber() {
 
 void SHIELDLib::initOLED() {
     if(!deviceOLED.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        Serial.println(F("OLED Display failed to start."));
+        //Serial.println(F("OLED Display failed to start."));
         for(;;);
     }
     displayMessage("Starting", "SHIELD...");
@@ -105,18 +158,15 @@ void SHIELDLib::displayDateTime() {
         Time.toCharArray(_time, 11);
         Date.toCharArray(_date, 10);
 
-        lastsaved_time = Time;
-        lastsaved_date = Date;
-
         displayMessage(_time, _date);
     }
 }
 
 void SHIELDLib::syncClock() {
     DateTime now = rtc.now();
-    int _unixtime = now.unixtime();
+    uint32_t _unixtime = now.unixtime();
 
-    if(_unixtime < code_uploaded_unix) {
+    if(_unixtime < 1649721600) {
         displayMessage("Clock", "Syncing...");
 
         shield.connecttoWIFI("ODIMUGRA", "odimugra023026");
@@ -141,15 +191,15 @@ void SHIELDLib::connecttoWIFI(char* wifi_ssid, char* wifi_password) {
     while (WiFi.status() != WL_CONNECTED){}
 }
 
-String SHIELDLib::getFilename(FileToSave _SHIELDFile) {
+String SHIELDLib::getFilename(FileToSave _SHIELDFile, char* SequenceNumber) {
     String _dest = "";
     switch(_SHIELDFile){
         case 0: //Audit Folder
-            _dest = dir_audit + _slash + "audit_" + getSequenceNumber() + file_extension;
+            _dest = dir_audit + _slash + "audit_" + SequenceNumber + file_extension;
             break;
         
         case 1: //Circadian Folder
-            _dest = dir_circadian + _slash + "circadian_" + getSequenceNumber() + file_extension;
+            _dest = dir_circadian + _slash + "circadian_" + SequenceNumber + file_extension;
             break;
 
         case 2: //Cirrus Folder
@@ -157,11 +207,11 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile) {
             break;
 
         case 3: //Transcript Folder
-            _dest = dir_memories + _slash + "transcript_" + getSequenceNumber() + file_extension;
+            _dest = dir_memories + _slash + "transcript_" + SequenceNumber + file_extension;
             break;
 
         case 4: //Dump Folder
-            _dest = dir_dumps + _slash + "dumps_" + getSequenceNumber() + file_extension;
+            _dest = dir_dumps + _slash + "dumps_" + SequenceNumber + file_extension;
             break;
 
         case 5: //Config Folder
@@ -169,7 +219,7 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile) {
             break;
 
         case 6: //Profile Folder
-            _dest = dir_profile + _slash + "profile_" + getSequenceNumber() + file_extension;
+            _dest = dir_profile + _slash + "profile_" + SequenceNumber + file_extension;
             break;
     }
 
@@ -177,71 +227,28 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile) {
 }
 
 void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
-    String __destination = getFilename(_destinationFile);
+    String __destination = getFilename(_destinationFile, getSequenceNumber());
 
     do {
         file = SD.open(__destination, FILE_WRITE);
         if(file) {
-            Serial.println("Unable to create the file!");
+            //Serial.println("Unable to create the file!");
             delay(500);
         }
     }while(!file);
 
     file.print(_rawdata);
     file.close();
-
-    Serial.println("Done writing.");
 }
 
 /* SHIELD's CORE FUNCTIONS */
 
-String SHIELDLib::generateCircadian() {
-    String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
-    save(CIRCADIAN_DATA, circadian);
-    return circadian;
+void SHIELDLib::sendProfile() {
+    String profile = getProfile();
 }
 
-String SHIELDLib::getProfile() {
-    // Generates the PUK, TUK, and the PID
-
-    // PUK
-    unsigned char salt_puk[MAX_BLOCKS] = {};
-    trng(salt_puk, 16);                                        //Generate the salts for PUK using TRNG
-    String puk = perfHKDF(CIRCADIAN, salt_puk, INFO_PUK, 16);  //Generate the PUK using HKDF
-    stringtobyte(PUK, puk);                                    //Store the generated PUK
-
-    // TUK
-    unsigned char salt_tuk[MAX_BLOCKS] = {};
-    trng(salt_tuk, 16);                                        //Generate the salts for TUK using TRNG
-    String tuk = perfHKDF(CIRCADIAN, salt_tuk, INFO_TUK, 16);  //Generate the TUK using HKDF
-    stringtobyte(TUK, tuk);                                    //Store the generated TUK
-
-    //PID
-    String pid = perfHKDF(CIRCADIAN, PUK, INFO_PID, 16);       //Generate the PID using HKDF
-    stringtobyte(PID, pid);                                    //Store the generated PID
-
-    //Encrpyt the PUK using the Circadian and the TUK
-    String cipher = encrypt(CIRCADIAN, PUK, TUK);              // Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
-    byte cipher_data[16];
-    stringtobyte(cipher_data, cipher);                         //Store the generated ciphertext as bytes
-
-    byte testPUk[MAX_BLOCKS];
-    stringtobyte(testPUk, cipher);                             //Converts the given ciphertext into a byte array
-
-    // Encodes the ciphertext to Base64
-    unsigned char base64[45];
-
-    // encode_base64() places a null terminator automatically, because the output is a string
-    unsigned int base64_length = encode_base64((unsigned char*)cipher.c_str(), strlen(cipher.c_str()) + 1, base64);
-
-    //Serial.println(strlen(cipher.c_str()));
-    //Serial.print("Base64 Size:\t\t");
-    //Serial.println(base64_length);
-    //Serial.print("Base64:\t\t");
-    //Serial.println((char *) base64);
-
-    save(PROFILE_DATA, (char*)base64);
-    return (char*)base64;
+void SHIELDLib::logEncounter(String payload) {
+    save(TRANSCRIPT_DATA, payload);
 }
 
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
