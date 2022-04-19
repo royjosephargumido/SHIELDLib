@@ -1,15 +1,9 @@
 # Arduino Library for SHIELD
 
-This is an Arduino library for [Smart Tag-based Human Infection Reporting and Encounter Logging Device (SHIELD)][1].
-The primary goal of this library is to easily implement SHIELD device functionality.
+This is an ESP8266 library for **Smart Tag-based Human Infection Reporting and Encounter Logging Device (SHIELD)**.
+The primary goal of this library is to easily implement SHIELD functionality.
 
-## SHIELD Devices
-SHIELD comprises of 2 types of device:
-
-1. **Beacon** which can be invoked by using the macro `BEACON`.
-2. **Neuron** which can be invoked by using the macro `NEURON`.
-
-## Functionality
+## Library
 
 To use the SHIELD library in an Arduino sketch, include SHIELDLib.h.
 
@@ -17,14 +11,18 @@ To use the SHIELD library in an Arduino sketch, include SHIELDLib.h.
 #include <SHIELDLib.h>
 ```
 
-Then create the device constructor:
+## Functionality
+SHIELD implements four core funtionalities:
 
 ```c
-Device device_name(device_type);
+shield.startDevice();       //Initializes and begins the SHIELD
 ```
-Replace `device_name` with your identifier and `device_type` with the device type macro *BEACON* or *NEURON*. The library automatically provide all applicable functions easily.
 
-**Note:** ***There is no need to call or invoke a certain functionality from other system module since all other system functions are automatically managed by the Device constructor upon creation.***
+```c
+shield.displayDateTime();   //Displays the Date and Time on the OLED
+shield.protocolbegin();     //Begins the SHIELD Protocol and Cryptography Modules
+shield.listen();            //Sends profile and recieves transcript to and from other devices
+```
 
 ## File System
 SHIELD strictly follow the following file structuring schemes:
@@ -48,6 +46,10 @@ SHIELD strictly follow the following file structuring schemes:
     |   |    |
     |   |    +--- cirrus.shield
     |   |
+    |   +--- Profile
+    |   |    |
+    |   |    +--- profile_1642084941.shield
+    |   |
     |   +--- Memories
     |        |
     |        +--- transcript_1642084941.shield
@@ -67,42 +69,6 @@ SHIELD strictly follow the following file structuring schemes:
             +--- beaconconfig.shield
             |
             +--- wifi.shield
-
-## System Modules
-SHIELD runs in an interconnected functions defined by its respective classes called **modules**.
-
-**Hardware-involved Modules:**
-
-- `Clock` manages the Date and Time function of the system.
-    - uses `DS3231 RTC Module`
-
-- `Wifi` manages the Wi-Fi capability of the system.
-    - uses `Uses NodeMCU v3 ESP8266 board`
-
-- `BLE` manages the Blowtooth Low Energy (BLE) functions.
-    - uses `Uses AT-09 BLE Module with Bluetooth 4.0 CC2541 BLE Chip`
-
-- `Datalogger` serves as the system's file manager.
-    - uses `Uses MicroSD Card at least 4GB (12GB MAX)` and `MicroSD Card Module`.
-
-- `Display` manages the visual output of the system (both serial and OLED displays).
-    - uses `Uses 0.91-inch OLED 128X32 display module`
-
-- `Notification` handles the audio and visual notification functions.
-    - uses `WS2812B 5050 SMD RGB LED with WS2811 LED controller chip`
-
-
-**Software-only Modules:**
-
-- `Protocol` performs the overall contact tracing protocol of SHIELD.
-- `AES` handles the AES cryptography methods.
-- `Data` handles the data preprocessing. 
-
-## Clock Module
-SHIELD uses a DS3231 Realtime Clock (RTC) module to provide the Date and Time Functionalities. By default, it provides the timestamp in **GMT+08:00 timezone** as specified by the `UTC_OFFSET_IN_SECONDS` macro. SHIELD also alows clock synchronization
-with *Network Time Protocol (NTP)* servers via the macro `NTP_SERVER_ADDRESS` which utilizes the Wifi capability of the system.
-
-**NOTE:** *to enable clock sync, the device shall be connected first to a Wi-Fi.*
 
 ## Required Third-Party Libraries
 SHIELD uses numerous third-party libraries to perform specific functions. These libraries are required and must be installed prior before using the SHIELD library.
