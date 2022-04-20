@@ -6,6 +6,14 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);
 Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
+// Cryptography
+int PROFILE_INTERVAL            = 15;                               //The interval in which the next profile is issued in minutes
+const int CIRCADIAN_PERIOD      = (60 / PROFILE_INTERVAL) * 24;     //The interval in which the next circadian is issued (in number of Profile_Interval per 24 Hrs)
+unsigned long PROFILE_PERIOD    = PROFILE_INTERVAL * 60000;         //Number of milliseconds in PROFILE_INTERVAL as the Profile_Period
+int NumOfIssuedProfile          = 0;
+unsigned long runtime;
+
+
 void SHIELDLib::startDevice() {
     shield.initOLED();      // Initializes the OLED display
     shield.initSDCard();    // Initializes the SD Card module
@@ -48,8 +56,8 @@ void SHIELDLib::protocolbegin() {
 
         //Encrpyt the PUK using the Circadian and the TUK
         String cipher = encrypt(CIRCADIAN, PUK, TUK);               // Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
-        uint32_t CV = getCIRRUSVersion();
-        cipher = String(CV) + '-' + cipher;
+        //uint32_t CV = getCIRRUSVersion();
+        cipher = String(getSequenceNumber()) + '-' + cipher;
 
         // Encodes the ciphertext to Base64
         unsigned char base64[61];
@@ -111,7 +119,7 @@ char* SHIELDLib::getSequenceNumber() {
 
 void SHIELDLib::initOLED() {
     if(!deviceOLED.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        //Serial.println(F("OLED Display failed to start."));
+        Serial.println(F("OLED Display failed to start."));
         for(;;);
     }
     displayMessage("Starting", "SHIELD...");
@@ -121,6 +129,7 @@ void SHIELDLib::initSDCard() {
     pinMode(pin_csSD, OUTPUT);
 
     while(!SD.begin(pin_csSD)) {
+        Serial.println(F("SD Card missing"));
         displayError(SD_MISSING);
         delay(50);
     }
@@ -128,6 +137,7 @@ void SHIELDLib::initSDCard() {
 
 bool SHIELDLib::beginClock() {
     while(!rtc.begin()) {
+        Serial.println(F("RTC missing"));
         displayError(CLOCK_MISSING);        
         delay(50);
         return false;
@@ -242,14 +252,6 @@ void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
 }
 
 /* SHIELD's CORE FUNCTIONS */
-
-void SHIELDLib::sendProfile() {
-    String profile = getProfile();
-}
-
-void SHIELDLib::logEncounter(String payload) {
-    save(TRANSCRIPT_DATA, payload);
-}
 
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 

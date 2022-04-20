@@ -55,13 +55,6 @@ const String dir_memories   = String() + folder_Data + _slash + folder_Memories;
 const String dir_core       = String() + folder_System + _slash + folder_Core;
 const String dir_profile    = String() + folder_Data + _slash + folder_Profile;
 
-// Cryptography
-int PROFILE_INTERVAL            = 15;                               //The interval in which the next profile is issued in minutes
-const int CIRCADIAN_PERIOD      = (60 / PROFILE_INTERVAL) * 24;     //The interval in which the next circadian is issued (in number of Profile_Interval per 24 Hrs)
-unsigned long PROFILE_PERIOD    = PROFILE_INTERVAL * 60000;         //Number of milliseconds in PROFILE_INTERVAL as the Profile_Period
-int NumOfIssuedProfile          = 0;
-unsigned long runtime;
-
 enum FileToSave {
     AUDIT_DATA,
     CIRCADIAN_DATA,
@@ -86,7 +79,7 @@ class SHIELDLib {
         void startDevice();
         void displayDateTime();
         void protocolbegin();
-        void listen();
+        //void listen();
 
     private:
         byte CIRCADIAN[MAX_BLOCKS];   // Circadian
