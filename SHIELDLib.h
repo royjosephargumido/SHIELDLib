@@ -101,13 +101,15 @@ class SHIELDLib {
 
         // File System
         void save(FileToSave _destinationFile, String _rawdata);
-        String getFilename(FileToSave _SHIELDFile, char* SequenceNumber);
+        String getFilename(FileToSave _SHIELDFile, String SequenceNumber);
 
 
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
         // SequenceNumber
-        char* getSequenceNumber();
+        String ulongtoString(uint32_t epoch);
+        uint32_t getSequenceNumber();
+
         // TrueRandom Number Generator (TRNG)
         ICACHE_FLASH_ATTR String trng(uint8_t* location, int outputLength);
         // Hash Key Derivation Function based on HMAC-SHA256

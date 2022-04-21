@@ -7,11 +7,15 @@ NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);
 Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // Cryptography
-int PROFILE_INTERVAL            = 15;                               //The interval in which the next profile is issued in minutes
-const int CIRCADIAN_PERIOD      = (60 / PROFILE_INTERVAL) * 24;     //The interval in which the next circadian is issued (in number of Profile_Interval per 24 Hrs)
-unsigned long PROFILE_PERIOD    = PROFILE_INTERVAL * 60000;         //Number of milliseconds in PROFILE_INTERVAL as the Profile_Period
-int NumOfIssuedProfile          = 0;
-unsigned long runtime;
+uint32_t prof_start_time    = 0;
+uint32_t profile_interval   = 1;
+const uint32_t PROFILE_PERIOD     = profile_interval * 60;
+
+uint32_t circ_start_time    = 0;
+const uint32_t CIRCADIAN_PERIOD   = 2 * 60;   //In seconds
+
+uint32_t currentSN = 0;
+bool ftb = true;
 
 
 void SHIELDLib::startDevice() {
@@ -19,22 +23,36 @@ void SHIELDLib::startDevice() {
     shield.initSDCard();    // Initializes the SD Card module
     shield.beginClock();    // Begins the clock
     
-    //syncClock();
+    syncClock();
+
+    uint32_t currSN = getSequenceNumber();
+    circ_start_time = currSN + CIRCADIAN_PERIOD;
+    prof_start_time = currSN + PROFILE_PERIOD;
 }
 
+char* _dt = (char*)malloc(50);
+
 void SHIELDLib::protocolbegin() {
-    //Issues new Circadian
-    if(NumOfIssuedProfile == CIRCADIAN_PERIOD) {
+    currentSN = getSequenceNumber();
+    
+    if(currentSN == circ_start_time || ftb) {        
         String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
-        runtime = millis(); //Begins the runtime for the PROFILE_PERIOD
         save(CIRCADIAN_DATA, circadian);
+
+        sprintf(_dt, "%02d/%02d/%02d %02d:%02d:%02d", day(currentSN), month(currentSN), year(currentSN), hour(currentSN), minute(currentSN), second(currentSN));
+        Serial.println(_dt);
         Serial.println("=========================================");
         Serial.println("CIRCADIAN:\t" + circadian);
-    }
+        Serial.println("=========================================");
+        Serial.println();
+        Serial.println();
 
-    //Checks if the number of minutes where the device runs (in milliseconds) triggers the PROFILE_PERIOD
-    //then issues the new Profile
-    if(runtime == PROFILE_PERIOD) {
+        if(!ftb) {
+            circ_start_time += CIRCADIAN_PERIOD;
+        }
+    }    
+    
+    if(currentSN == prof_start_time || ftb) {
         // PUK
         unsigned char salt_puk[MAX_BLOCKS] = {};
         trng(salt_puk, 16);                                         //Generate the salts for PUK using TRNG
@@ -57,28 +75,53 @@ void SHIELDLib::protocolbegin() {
         //Encrpyt the PUK using the Circadian and the TUK
         String cipher = encrypt(CIRCADIAN, PUK, TUK);               // Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
         //uint32_t CV = getCIRRUSVersion();
-        cipher = String(getSequenceNumber()) + '-' + cipher;
+        cipher = ulongtoString(currentSN) + '-' + cipher;
 
         // Encodes the ciphertext to Base64
-        unsigned char base64[61];
+        unsigned char smart_tag[61];
         // encode_base64() places a null terminator automatically, because the output is a string
-        unsigned int base64_length = encode_base64((unsigned char*)cipher.c_str(), strlen(cipher.c_str()) + 1, base64);
+        unsigned int base64_length = encode_base64((unsigned char*)cipher.c_str(), strlen(cipher.c_str()) + 1, smart_tag);
+        
+        sprintf(_dt, "%02d/%02d/%02d %02d:%02d:%02d", day(currentSN), month(currentSN), year(currentSN), hour(currentSN), minute(currentSN), second(currentSN));
+        Serial.println(_dt);
+        Serial.println("=========================================");
+        Serial.print("Smart Tag:\n");
+        Serial.println((char *) smart_tag);
+        Serial.println("=========================================");
 
+        /*
         Serial.println("PUK:\t" + puk);
         Serial.println("TUK:\t" + tuk);
         Serial.println("PID:\t" + pid);
         Serial.println("=========================================");
-        Serial.println("Ciphertext:\t" + cipher);
-        Serial.println("PUK:\t\t" + puk);
-        Serial.println("=========================================");
-        Serial.println(strlen(cipher.c_str()));
-        Serial.print("Base64 Size:\t\t");
-        Serial.println(base64_length);
-        Serial.print("Base64:\t\t");
-        Serial.println((char *) base64);
+        Serial.println("Profile:\n" + cipher);
 
-        save(PROFILE_DATA, (char*)base64);
-        NumOfIssuedProfile++;
+        // Decoding base64
+        char rawdata[32];
+        decode_base64(smart_tag, (unsigned char*)rawdata);
+        Serial.print("Rawdata:\n");
+        Serial.println((char *) rawdata);
+        Serial.println("=========================================");
+        char* _cip = (char*)malloc(32);
+        sprintf(_cip, "%s", cipher);
+        Serial.print("Status: ");
+        if (strcmp(_cip, rawdata) == 0)
+            Serial.println("Passed.");
+        else
+            Serial.println("Passed.");
+        */
+        Serial.println();
+        Serial.println();
+          
+        save(PROFILE_DATA, (char*)smart_tag);
+
+        if(!ftb) {
+            prof_start_time += PROFILE_PERIOD;
+        }
+    }
+
+    if(ftb) {
+        ftb = false;
     }
 }
 
@@ -108,13 +151,15 @@ void SHIELDLib::displayMessage(char* line1, char* line2) {
     deviceOLED.display();
 }
 
-char* SHIELDLib::getSequenceNumber() {
+String SHIELDLib::ulongtoString(uint32_t epoch) {
     char* _dt = (char*)malloc(50);
-    DateTime now = rtc.now();
-    uint32_t _unixtime = now.unixtime();
+    ltoa(epoch, _dt, 10);
+    return String(_dt);
+}
 
-    ltoa(_unixtime, _dt, 10);
-    return _dt;
+uint32_t SHIELDLib::getSequenceNumber() {
+    DateTime now = rtc.now();
+    return now.unixtime();
 }
 
 void SHIELDLib::initOLED() {
@@ -151,18 +196,18 @@ void SHIELDLib::displayDateTime() {
 
         // Adding the '0' Padding to minute if minute is lesser than 10
         String Min = (now.minute() < 10) ? "0" + (String)now.minute() : (String)now.minute();
-        //String Sec = (now.second() < 10) ? "0" + (String)now.second() : (String)now.second();
+        String Sec = (now.second() < 10) ? "0" + (String)now.second() : (String)now.second();
 
         String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
         
         String Time = "";
         if(now.hour() > 12) {   //Check if PM
-            Time = (String)(now.hour() % 12) + ':' + Min + " PM";
+            Time = (String)(now.hour() % 12) + ':' + Min  + ":" + Sec;
         } else {    // Time is AM
             Time = (now.hour() == 0) ? "12" : (String)now.hour();            
-            Time += ':' + Min + " AM";
+            Time += ':' + Min + ":" + Sec;
         }
-
+        
         char _time[12];
         char _date[11];
         Time.toCharArray(_time, 11);
@@ -172,6 +217,9 @@ void SHIELDLib::displayDateTime() {
     }
 }
 
+const char *ssid     = "ODIMUGRA";
+const char *password = "odimugra023026";
+
 void SHIELDLib::syncClock() {
     DateTime now = rtc.now();
     uint32_t _unixtime = now.unixtime();
@@ -179,16 +227,18 @@ void SHIELDLib::syncClock() {
     if(_unixtime < 1649721600) {
         displayMessage("Clock", "Syncing...");
 
-        shield.connecttoWIFI("ODIMUGRA", "odimugra023026");
+        WiFi.begin(ssid, password);
+
+        Serial.println("Connecting...");
+        while ( WiFi.status() != WL_CONNECTED ) {
+            delay ( 500 );
+        }
+        Serial.println("Connected.");
+
         timeClient.begin();
 
-        int _timer = 0;
-        unsigned long _t;
-        do {
-            timeClient.update();
-            _t = timeClient.getEpochTime(); //Connects to the NTP Server and gets Unix time
-            _timer += 1;
-        }while(_timer < 2);
+        timeClient.update();
+        unsigned long _t = timeClient.getEpochTime();
 
         rtc.adjust(DateTime(year(_t), month(_t), day(_t), hour(_t), minute(_t), second(_t)));
         WiFi.disconnect();
@@ -201,7 +251,7 @@ void SHIELDLib::connecttoWIFI(char* wifi_ssid, char* wifi_password) {
     while (WiFi.status() != WL_CONNECTED){}
 }
 
-String SHIELDLib::getFilename(FileToSave _SHIELDFile, char* SequenceNumber) {
+String SHIELDLib::getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
     String _dest = "";
     switch(_SHIELDFile){
         case 0: //Audit Folder
@@ -237,7 +287,7 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile, char* SequenceNumber) {
 }
 
 void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
-    String __destination = getFilename(_destinationFile, getSequenceNumber());
+    String __destination = getFilename(_destinationFile, ulongtoString(getSequenceNumber()));
 
     do {
         file = SD.open(__destination, FILE_WRITE);
