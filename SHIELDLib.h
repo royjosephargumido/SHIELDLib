@@ -79,7 +79,7 @@ class SHIELDLib {
         void startDevice();
         void displayDateTime();
         void protocolbegin();
-        //void listen();
+        void listen();
 
     private:
         byte CIRCADIAN[MAX_BLOCKS];   // Circadian
@@ -87,11 +87,13 @@ class SHIELDLib {
         unsigned char const INFO_PUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X55, 0X4b};    //SHIELD-PUK
         unsigned char const INFO_TUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X54, 0X55, 0X4b};    //SHIELD-TUK
         unsigned char const INFO_PID[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X49, 0X44};    //SHIELD-PID
-        
+        unsigned char smart_tag[61];
+
         // Hardware components
         void initOLED();
         void initSDCard();
         bool beginClock();
+        void openBLE();
 
         // Utility
         void syncClock();
@@ -106,10 +108,10 @@ class SHIELDLib {
 
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
-        // SequenceNumber
-        String ulongtoString(uint32_t epoch);
-        uint32_t getSequenceNumber();
+        // Core Cryptography Functions
 
+        // SequenceNumber
+        uint32_t getSequenceNumber();
         // TrueRandom Number Generator (TRNG)
         ICACHE_FLASH_ATTR String trng(uint8_t* location, int outputLength);
         // Hash Key Derivation Function based on HMAC-SHA256
@@ -121,7 +123,11 @@ class SHIELDLib {
         unsigned int encode_base64(unsigned char input[], unsigned int input_length, unsigned char output[]);
         unsigned int decode_base64(unsigned char input[], unsigned char output[]);
 
-        // Byte and String utilities
+
+        // Cryptography Utilities
+
+        // SequenceNumber
+        String ulongtoString(uint32_t epoch);                   //Converts uint32_t SequenceNumber to its String representation
         String bytetostring(byte array[]);                      //Converts a byte array to its hexadecima/string representation
         void stringtobyte(uint8_t* location, String rawdata);   //Converts a string to a byte array
 
@@ -131,11 +137,11 @@ class SHIELDLib {
         ICACHE_FLASH_ATTR int whiten();                 // Software whiten the generated random bit
         ICACHE_FLASH_ATTR char randomByte();            // Generates a random byte
 
-        //Base64 Encoding required functions
+        //Base64 Encoding Utilities
         unsigned char binary_to_base64(unsigned char v);
         unsigned int encode_base64_length(unsigned int input_length);
 
-        //Base64 Decoding required functions
+        //Base64 Decoding Utilities
         unsigned char base64_to_binary(unsigned char c);
         unsigned int decode_base64_length(unsigned char input[]);
         unsigned int decode_base64_length(unsigned char input[], unsigned int input_length);

@@ -1,39 +1,80 @@
 #include "SHIELDLib.h"
 
-File file;
-RTC_DS3231 rtc;
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);
-Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+File file;          // File System
+RTC_DS3231 rtc;     // RTC Module
+WiFiUDP ntpUDP;     // Network Time Protocol (used to sync RTC with internet time)
+SoftwareSerial ble(D3, D4);     // BLE Module
+NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);    // Required for the syncing of local time with the internet time
+Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);        // OLED module
+
 
 // Cryptography
-uint32_t prof_start_time    = 0;
-uint32_t profile_interval   = 1;
-const uint32_t PROFILE_PERIOD     = profile_interval * 60;
+uint32_t prof_start_time        = 0;
+uint32_t profile_interval       = 15;    //Change this to reflect the interval for the next Profile issuance (in minutes)
+const uint32_t PROFILE_PERIOD   = profile_interval * 60;
 
-uint32_t circ_start_time    = 0;
-const uint32_t CIRCADIAN_PERIOD   = 2 * 60;   //In seconds
+uint32_t circ_start_time        = 0;
+const uint32_t CIRCADIAN_PERIOD = 86400;   // Number of seconds in a day
 
-uint32_t currentSN = 0;
-bool ftb = true;
+uint32_t currentSN = 0;     // Current SequenceNumber
+bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)
 
+
+/**
+ * @brief SHIELD's Constructor
+ * 
+ * @return ICACHE_FLASH_ATTR 
+ */
+ICACHE_FLASH_ATTR SHIELDLib::SHIELDLib() {
+	lastYield = 0;
+}
+
+/* CORE FUNCTIONALITIES */
 
 void SHIELDLib::startDevice() {
-    shield.initOLED();      // Initializes the OLED display
-    shield.initSDCard();    // Initializes the SD Card module
-    shield.beginClock();    // Begins the clock
-    
-    syncClock();
+    initOLED();     // Initializes the OLED display
+    initSDCard();   // Initializes the SD Card module
+    beginClock();   // Begins the clock
+    openBLE();      // Opens the BLE module
 
+    syncClock();    // Conncets to a saved WiFi and syncs local time with internet time
+
+    //Sets the beggining SequenceNumber for the issuance of Circadian and Profile
     uint32_t currSN = getSequenceNumber();
     circ_start_time = currSN + CIRCADIAN_PERIOD;
     prof_start_time = currSN + PROFILE_PERIOD;
 }
 
-char* _dt = (char*)malloc(50);
+void SHIELDLib::displayDateTime() {
+    if(beginClock()) {
+        DateTime now = rtc.now();
+
+        // Adding the '0' Padding to minute if minute is lesser than 10
+        String Min = (now.minute() < 10) ? "0" + (String)now.minute() : (String)now.minute();
+        String Sec = (now.second() < 10) ? "0" + (String)now.second() : (String)now.second();
+
+        String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
+        
+        String Time = "";
+        if(now.hour() > 12) {   //Check if PM
+            Time = (String)(now.hour() % 12) + ':' + Min  + ":" + Sec;
+        } else {    // Time is AM
+            Time = (now.hour() == 0) ? "12" : (String)now.hour();            
+            Time += ':' + Min + ":" + Sec;
+        }
+        
+        char _time[12];
+        char _date[11];
+        Time.toCharArray(_time, 11);
+        Date.toCharArray(_date, 10);
+
+        displayMessage(_time, _date);
+    }
+}
 
 void SHIELDLib::protocolbegin() {
     currentSN = getSequenceNumber();
+    char* _dt = (char*)malloc(50);
     
     if(currentSN == circ_start_time || ftb) {        
         String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
@@ -47,9 +88,7 @@ void SHIELDLib::protocolbegin() {
         Serial.println();
         Serial.println();
 
-        if(!ftb) {
-            circ_start_time += CIRCADIAN_PERIOD;
-        }
+        if(!ftb) { circ_start_time += CIRCADIAN_PERIOD; }
     }    
     
     if(currentSN == prof_start_time || ftb) {
@@ -77,8 +116,6 @@ void SHIELDLib::protocolbegin() {
         //uint32_t CV = getCIRRUSVersion();
         cipher = ulongtoString(currentSN) + '-' + cipher;
 
-        // Encodes the ciphertext to Base64
-        unsigned char smart_tag[61];
         // encode_base64() places a null terminator automatically, because the output is a string
         unsigned int base64_length = encode_base64((unsigned char*)cipher.c_str(), strlen(cipher.c_str()) + 1, smart_tag);
         
@@ -115,52 +152,37 @@ void SHIELDLib::protocolbegin() {
           
         save(PROFILE_DATA, (char*)smart_tag);
 
-        if(!ftb) {
-            prof_start_time += PROFILE_PERIOD;
-        }
+        if(!ftb) { prof_start_time += PROFILE_PERIOD; }
     }
 
-    if(ftb) {
-        ftb = false;
+    if(ftb) { ftb = false; }
+}
+
+void SHIELDLib::listen() {
+    String message = "";
+    message.trim();
+
+    if(ble.available() > 0) {
+        message = ble.readStringUntil('\0');
+    }
+
+    if(message.length() == 11) {
+        Serial.println("Connected.");
+    }
+
+    if(message.length() >= 60) {
+        message.trim();
+        Serial.println("Data received.");
+        Serial.println(message.length());
+        Serial.println(message);
+        save(TRANSCRIPT_DATA, message);
+        ble.println((char *) smart_tag);
+        Serial.flush();
+        ble.flush();
     }
 }
 
-void SHIELDLib::displayError(ErrorCodes err) {
-    switch (err)
-    {
-    case CLOCK_MISSING:
-        displayMessage("ERROR!", "No RTC Mod");
-        break;
-
-    case SD_MISSING:
-        displayMessage("ERROR!", "No SD Card");
-        break;
-    
-    default:
-        break;
-    }
-}
-
-void SHIELDLib::displayMessage(char* line1, char* line2) {
-    deviceOLED.clearDisplay();          // Clear the buffer.
-    deviceOLED.setTextSize(2);
-    deviceOLED.setTextColor(WHITE);
-    deviceOLED.setCursor(0,0);
-    deviceOLED.println(line1);
-    deviceOLED.println(line2);
-    deviceOLED.display();
-}
-
-String SHIELDLib::ulongtoString(uint32_t epoch) {
-    char* _dt = (char*)malloc(50);
-    ltoa(epoch, _dt, 10);
-    return String(_dt);
-}
-
-uint32_t SHIELDLib::getSequenceNumber() {
-    DateTime now = rtc.now();
-    return now.unixtime();
-}
+/* HARDWARE COMPONENTS */
 
 void SHIELDLib::initOLED() {
     if(!deviceOLED.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
@@ -190,32 +212,11 @@ bool SHIELDLib::beginClock() {
     return true;
 }
 
-void SHIELDLib::displayDateTime() {
-    if(beginClock()) {
-        DateTime now = rtc.now();
-
-        // Adding the '0' Padding to minute if minute is lesser than 10
-        String Min = (now.minute() < 10) ? "0" + (String)now.minute() : (String)now.minute();
-        String Sec = (now.second() < 10) ? "0" + (String)now.second() : (String)now.second();
-
-        String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
-        
-        String Time = "";
-        if(now.hour() > 12) {   //Check if PM
-            Time = (String)(now.hour() % 12) + ':' + Min  + ":" + Sec;
-        } else {    // Time is AM
-            Time = (now.hour() == 0) ? "12" : (String)now.hour();            
-            Time += ':' + Min + ":" + Sec;
-        }
-        
-        char _time[12];
-        char _date[11];
-        Time.toCharArray(_time, 11);
-        Date.toCharArray(_date, 10);
-
-        displayMessage(_time, _date);
-    }
+void SHIELDLib::openBLE() {
+    ble.begin(9600);
 }
+
+/* UTILITIES */
 
 const char *ssid     = "ODIMUGRA";
 const char *password = "odimugra023026";
@@ -224,7 +225,7 @@ void SHIELDLib::syncClock() {
     DateTime now = rtc.now();
     uint32_t _unixtime = now.unixtime();
 
-    if(_unixtime < 1649721600) {
+    if(_unixtime < 1650652888) {
         displayMessage("Clock", "Syncing...");
 
         WiFi.begin(ssid, password);
@@ -237,8 +238,14 @@ void SHIELDLib::syncClock() {
 
         timeClient.begin();
 
-        timeClient.update();
-        unsigned long _t = timeClient.getEpochTime();
+        int timer = 0;
+        unsigned long _t = 0;
+
+        do{
+            timeClient.update();
+            _t = timeClient.getEpochTime();
+            timer += 1;
+        }while (timer < 2);
 
         rtc.adjust(DateTime(year(_t), month(_t), day(_t), hour(_t), minute(_t), second(_t)));
         WiFi.disconnect();
@@ -249,6 +256,49 @@ void SHIELDLib::connecttoWIFI(char* wifi_ssid, char* wifi_password) {
     WiFi.mode(WIFI_STA);
     WiFi.begin(wifi_ssid, wifi_password);
     while (WiFi.status() != WL_CONNECTED){}
+}
+
+void SHIELDLib::displayError(ErrorCodes err) {
+    switch (err)
+    {
+    case CLOCK_MISSING:
+        displayMessage("ERROR!", "No RTC Mod");
+        break;
+
+    case SD_MISSING:
+        displayMessage("ERROR!", "No SD Card");
+        break;
+    
+    default:
+        break;
+    }
+}
+
+void SHIELDLib::displayMessage(char* line1, char* line2) {
+    deviceOLED.clearDisplay();          // Clear the buffer.
+    deviceOLED.setTextSize(2);
+    deviceOLED.setTextColor(WHITE);
+    deviceOLED.setCursor(0,0);
+    deviceOLED.println(line1);
+    deviceOLED.println(line2);
+    deviceOLED.display();
+}
+
+/* FILE SYSTEM */
+
+void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
+    String __destination = getFilename(_destinationFile, ulongtoString(getSequenceNumber()));
+
+    do {
+        file = SD.open(__destination, FILE_WRITE);
+        if(file) {
+            //Serial.println("Unable to create the file!");
+            delay(500);
+        }
+    }while(!file);
+
+    file.print(_rawdata);
+    file.close();
 }
 
 String SHIELDLib::getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
@@ -286,72 +336,14 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
     return _dest;
 }
 
-void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
-    String __destination = getFilename(_destinationFile, ulongtoString(getSequenceNumber()));
-
-    do {
-        file = SD.open(__destination, FILE_WRITE);
-        if(file) {
-            //Serial.println("Unable to create the file!");
-            delay(500);
-        }
-    }while(!file);
-
-    file.print(_rawdata);
-    file.close();
-}
-
-/* SHIELD's CORE FUNCTIONS */
-
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
-HKDF<SHA256> hkdf_hmac_object;
-CTR<AES128> ctraes128;
+HKDF<SHA256> hkdf_hmac_object;      // Creates the HKDF Object based on HMAC-SHA256
+CTR<AES128> ctraes128;              // Creates the AES Object in AES128-CTR Mode
 
-ICACHE_FLASH_ATTR SHIELDLib::SHIELDLib() {
-	lastYield = 0;
-}
-
-ICACHE_FLASH_ATTR int SHIELDLib::randomBit(void) {
-    // Needed to keep wifi stack running smoothly and to avoid wdt reset
-    if (lastYield == 0 || millis() - lastYield >= 50) {
-    yield();
-    lastYield = millis();
-    }
-    uint8_t bit = (int)RANDOM_REG32;  //This uses the onboard Random Number Generator (esp8266_peri.h)
-
-    return bit & 1;
-}
-
-ICACHE_FLASH_ATTR int SHIELDLib::whiten(void) {
-    /* 
-    * Software whitening bits using Von Neuman Algorithm which fixes simple bias and reduce correlation
-    * 
-    * VNA considers two bits at a time (non-overlapping), taking one of three actions:
-    *  - when two successive bits are equal, they are discarded;
-    *  - a sequence of 1,0 becomes a 1;
-    *  - and a sequence of 0,1 becomes a zero.
-    * It thus represents a falling edge with a 1, and a rising edge with a 0.
-    * 
-    * See:
-    * https://dornsifecms.usc.edu/assets/sites/520/docs/VonNeumann-ams12p36-38.pdf
-    * https://en.wikipedia.org/wiki/Hardware_random_number_generator#Software_whitening
-    */
-    for(;;) { /* will loop forever until a value is returned, does not execute the last return*/
-        int a = randomBit() | randomBit() << 1;
-        if (a==1) return 0; // 1 to 0 transition: log a zero bit
-        if (a==2) return 1; // 0 to 1 transition: log a one bit
-        // For other cases, try again.
-    }
-
-    return 0;
-}
-
-ICACHE_FLASH_ATTR char SHIELDLib::randomByte(void) {
-    char result = 0;
-    for (uint8_t i = 8; i--;)
-        result += result + whiten();
-    return result;
+uint32_t SHIELDLib::getSequenceNumber() {
+    DateTime now = rtc.now();
+    return now.unixtime();
 }
 
 ICACHE_FLASH_ATTR String  SHIELDLib::trng(uint8_t* location, int outputLength) {
@@ -370,31 +362,6 @@ ICACHE_FLASH_ATTR String  SHIELDLib::trng(uint8_t* location, int outputLength) {
     }
 
     return string;
-}
-
-String SHIELDLib::bytetostring(byte array[]) {
-    char buffer[MAX_BLOCKS * 2];
-
-    for (unsigned int i = 0; i < MAX_BLOCKS; i++) {
-        byte nib1 = (array[i] >> 4) & 0x0F;
-        byte nib2 = (array[i] >> 0) & 0x0F;
-        buffer[i*2+0] = nib1  < 0xa ? '0' + nib1  : 'a' + nib1  - 0xa;
-        buffer[i*2+1] = nib2  < 0xa ? '0' + nib2  : 'a' + nib2  - 0xa;
-    }
-    buffer[sizeof(buffer)] = '\0';
-
-    return String(buffer);
-}
-
-void SHIELDLib::stringtobyte(uint8_t* location, String rawdata) {
-    char buffer[MAX_BLOCKS * 2 + 1];
-    rawdata.toCharArray(buffer, MAX_BLOCKS * 2 + 1);
-
-    int pos = 0;
-    for(int index = 0; index < MAX_BLOCKS * 2; pos++, ++index) {
-        auto getNum = [](char c){ return c > '9' ? c - 'a' + 10 : c - '0'; };
-        location[pos] = (getNum((char)buffer[index]) << 4) + getNum((char)buffer[++index]);
-    }
 }
 
 String SHIELDLib::perfHKDF(const unsigned char *key, const unsigned char *salt, const unsigned char *info, size_t outputlength) {
@@ -460,29 +427,6 @@ String SHIELDLib::decrypt(const unsigned char *key, const unsigned char *data, c
     return bytetostring(output);
 }
 
-unsigned char SHIELDLib::binary_to_base64(unsigned char v) {
-    // Capital letters - 'A' is ascii 65 and bas88e64 0
-    if(v < 26) return v + 'A';
-
-    // Lowercase letters - 'a' is ascii 97 and base64 26
-    if(v < 52) return v + 71;
-
-    // Digits - '0' is ascii 48 and base64 52
-    if(v < 62) return v - 4;
-
-    // '+' is ascii 43 and base64 62
-    if(v == 62) return '+';
-
-    // '/' is ascii 47 and base64 63
-    if(v == 63) return '/';
-
-    return 64;
-}
-
-unsigned int SHIELDLib::encode_base64_length(unsigned int input_length) {
-    return (input_length + 2)/3*4;
-}
-
 unsigned int SHIELDLib::encode_base64(unsigned char input[], unsigned int input_length, unsigned char output[]) {
     unsigned int full_sets = input_length/3;
 
@@ -520,6 +464,137 @@ unsigned int SHIELDLib::encode_base64(unsigned char input[], unsigned int input_
     return encode_base64_length(input_length);
 }
 
+unsigned int SHIELDLib::decode_base64(unsigned char input[], unsigned char output[]) {
+    unsigned int input_length = -1;
+    unsigned int output_length = decode_base64_length(input, input_length);
+
+    // While there are still full sets of 24 bits...
+    for(unsigned int i = 2; i < output_length; i += 3) {
+        output[0] = base64_to_binary(input[0]) << 2 | base64_to_binary(input[1]) >> 4;
+        output[1] = base64_to_binary(input[1]) << 4 | base64_to_binary(input[2]) >> 2;
+        output[2] = base64_to_binary(input[2]) << 6 | base64_to_binary(input[3]);
+
+        input += 4;
+        output += 3;
+    }
+
+    switch(output_length % 3) {
+        case 1:
+            output[0] = base64_to_binary(input[0]) << 2 | base64_to_binary(input[1]) >> 4;
+            break;
+        case 2:
+            output[0] = base64_to_binary(input[0]) << 2 | base64_to_binary(input[1]) >> 4;
+            output[1] = base64_to_binary(input[1]) << 4 | base64_to_binary(input[2]) >> 2;
+            break;
+    }
+
+    return output_length;
+}
+
+/* CRYPTOGRAPHY UTILITIES */
+
+String SHIELDLib::ulongtoString(uint32_t epoch) {
+    char* _dt = (char*)malloc(50);
+    ltoa(epoch, _dt, 10);
+    return String(_dt);
+}
+
+String SHIELDLib::bytetostring(byte array[]) {
+    char buffer[MAX_BLOCKS * 2];
+
+    for (unsigned int i = 0; i < MAX_BLOCKS; i++) {
+        byte nib1 = (array[i] >> 4) & 0x0F;
+        byte nib2 = (array[i] >> 0) & 0x0F;
+        buffer[i*2+0] = nib1  < 0xa ? '0' + nib1  : 'a' + nib1  - 0xa;
+        buffer[i*2+1] = nib2  < 0xa ? '0' + nib2  : 'a' + nib2  - 0xa;
+    }
+    buffer[sizeof(buffer)] = '\0';
+
+    return String(buffer);
+}
+
+void SHIELDLib::stringtobyte(uint8_t* location, String rawdata) {
+    char buffer[MAX_BLOCKS * 2 + 1];
+    rawdata.toCharArray(buffer, MAX_BLOCKS * 2 + 1);
+
+    int pos = 0;
+    for(int index = 0; index < MAX_BLOCKS * 2; pos++, ++index) {
+        auto getNum = [](char c){ return c > '9' ? c - 'a' + 10 : c - '0'; };
+        location[pos] = (getNum((char)buffer[index]) << 4) + getNum((char)buffer[++index]);
+    }
+}
+
+/* TRNG UTILITIES */
+
+ICACHE_FLASH_ATTR int SHIELDLib::randomBit(void) {
+    // Needed to keep wifi stack running smoothly and to avoid wdt reset
+    if (lastYield == 0 || millis() - lastYield >= 50) {
+    yield();
+    lastYield = millis();
+    }
+    uint8_t bit = (int)RANDOM_REG32;  //This uses the onboard Random Number Generator (esp8266_peri.h)
+
+    return bit & 1;
+}
+
+ICACHE_FLASH_ATTR int SHIELDLib::whiten(void) {
+    /* 
+    * Software whitening bits using Von Neuman Algorithm which fixes simple bias and reduce correlation
+    * 
+    * VNA considers two bits at a time (non-overlapping), taking one of three actions:
+    *  - when two successive bits are equal, they are discarded;
+    *  - a sequence of 1,0 becomes a 1;
+    *  - and a sequence of 0,1 becomes a zero.
+    * It thus represents a falling edge with a 1, and a rising edge with a 0.
+    * 
+    * See:
+    * https://dornsifecms.usc.edu/assets/sites/520/docs/VonNeumann-ams12p36-38.pdf
+    * https://en.wikipedia.org/wiki/Hardware_random_number_generator#Software_whitening
+    */
+    for(;;) { /* will loop forever until a value is returned, does not execute the last return*/
+        int a = randomBit() | randomBit() << 1;
+        if (a==1) return 0; // 1 to 0 transition: log a zero bit
+        if (a==2) return 1; // 0 to 1 transition: log a one bit
+        // For other cases, try again.
+    }
+
+    return 0;
+}
+
+ICACHE_FLASH_ATTR char SHIELDLib::randomByte(void) {
+    char result = 0;
+    for (uint8_t i = 8; i--;)
+        result += result + whiten();
+    return result;
+}
+
+/* BASE64 ENCODING UTILITIES */
+
+unsigned char SHIELDLib::binary_to_base64(unsigned char v) {
+    // Capital letters - 'A' is ascii 65 and bas88e64 0
+    if(v < 26) return v + 'A';
+
+    // Lowercase letters - 'a' is ascii 97 and base64 26
+    if(v < 52) return v + 71;
+
+    // Digits - '0' is ascii 48 and base64 52
+    if(v < 62) return v - 4;
+
+    // '+' is ascii 43 and base64 62
+    if(v == 62) return '+';
+
+    // '/' is ascii 47 and base64 63
+    if(v == 63) return '/';
+
+    return 64;
+}
+
+unsigned int SHIELDLib::encode_base64_length(unsigned int input_length) {
+    return (input_length + 2)/3*4;
+}
+
+/* BASE64 ENCODING UTILITIES */
+
 unsigned char SHIELDLib::base64_to_binary(unsigned char c) {
     // Capital letters - 'A' is ascii 65 and base64 0
     if('A' <= c && c <= 'Z') return c - 'A';
@@ -552,36 +627,6 @@ unsigned int SHIELDLib::decode_base64_length(unsigned char input[], unsigned int
 
 unsigned int SHIELDLib::decode_base64_length(unsigned char input[]) {
     return decode_base64_length(input, -1);
-}
-
-unsigned int SHIELDLib::decode_base64(unsigned char input[], unsigned char output[]) {
-    return decode_base64(input, -1, output);
-}
-
-unsigned int SHIELDLib::decode_base64(unsigned char input[], unsigned int input_length, unsigned char output[]) {
-    unsigned int output_length = decode_base64_length(input, input_length);
-
-    // While there are still full sets of 24 bits...
-    for(unsigned int i = 2; i < output_length; i += 3) {
-        output[0] = base64_to_binary(input[0]) << 2 | base64_to_binary(input[1]) >> 4;
-        output[1] = base64_to_binary(input[1]) << 4 | base64_to_binary(input[2]) >> 2;
-        output[2] = base64_to_binary(input[2]) << 6 | base64_to_binary(input[3]);
-
-        input += 4;
-        output += 3;
-    }
-
-    switch(output_length % 3) {
-        case 1:
-            output[0] = base64_to_binary(input[0]) << 2 | base64_to_binary(input[1]) >> 4;
-            break;
-        case 2:
-            output[0] = base64_to_binary(input[0]) << 2 | base64_to_binary(input[1]) >> 4;
-            output[1] = base64_to_binary(input[1]) << 4 | base64_to_binary(input[2]) >> 2;
-            break;
-    }
-
-    return output_length;
 }
 
 SHIELDLib shield;
