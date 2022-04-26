@@ -51,13 +51,10 @@ SHIELD strictly follow the following file structuring schemes:
     |   +--- Memories
     |   |     |
     |   |     +--- transcript_1642084941.shield
+    |   |
     |   +--- Profile
     |   |    |
     |   |    +--- profile_1642084941.shield
-    |   |
-    |   +--- Memories
-    |   |    |
-    |   |    +--- transcript_1642084941.shield
     |   |
     |   +--- SmartTags
     |        |
