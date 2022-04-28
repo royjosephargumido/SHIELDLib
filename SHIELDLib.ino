@@ -10,7 +10,7 @@ void setup() {
 }
 
 void loop() {
-    shield.displayDateTime();   //Displays the Date and Time on the OLED
     shield.protocolbegin();     //Begins the SHIELD Protocol and Cryptography Modules
     shield.listen();            //Sends profile and recieves transcript to and from other devices
+    shield.getHealthStatus();   //Displays HealthStatus when button pressed, else display date and time
 }

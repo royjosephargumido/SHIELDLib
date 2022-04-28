@@ -8,7 +8,7 @@
 #include <SPI.h>                //Serial Peripheral Interface (SPI) Protocol for the SD Card Module
 #include <Wire.h>               //I2C Protocol for Two-Wire modules
 #include <RTClib.h>             //Real-time Clock (RTC) Functionalities
-//#include <PCF8574.h>            //For the PCF8574 GPIO Expander
+#include <PCF8574.h>            //For the PCF8574 GPIO Expander
 #include <WiFiUdp.h>            //Wi-Fi User Datagram Protocol (UDP) for NTP Functionality
 #include <TimeLib.h>            //Date-Time Functionality
 #include <NTPClient.h>          //Network Time Protocol (NTP) Functions
@@ -40,7 +40,7 @@
 #define folder_Audit            "Audit"
 #define folder_Circadian        "Circadian"
 #define folder_CIRRUS           "CIRRUS"
-#define folder_Memories         "Transcripts"
+#define folder_Transcripts      "Transcripts"
 #define folder_Profile          "Profile"
 #define folder_SmartTag         "SmartTags"
 #define folder_System           "System"
@@ -48,15 +48,14 @@
 #define folder_Dumps            "Dumps"
 #define fn_CoreConfiguration    "BeaconConfig"
 
-const String dir_audit      = String() + folder_Data + _slash + folder_Audit;
-const String dir_circadian  = String() + folder_Data + _slash + folder_Circadian;
-const String dir_cirrus     = String() + folder_Data + _slash + folder_CIRRUS;
-const String dir_dumps      = String() + folder_Data + _slash + folder_Dumps;
-const String dir_memories   = String() + folder_Data + _slash + folder_Memories;
-const String dir_profile    = String() + folder_Data + _slash + folder_Profile;
-const String dir_smarttag   = String() + folder_Data + _slash + folder_SmartTag;
-const String dir_core       = String() + folder_System + _slash + folder_Core;
-
+const String dir_audit          = String() + folder_Data + _slash + folder_Audit;
+const String dir_circadian      = String() + folder_Data + _slash + folder_Circadian;
+const String dir_cirrus         = String() + folder_Data + _slash + folder_CIRRUS;
+const String dir_dumps          = String() + folder_Data + _slash + folder_Dumps;
+const String dir_transcripts    = String() + folder_Data + _slash + folder_Transcripts;
+const String dir_smarttags      = String() + folder_Data + _slash + folder_SmartTag;
+const String dir_core           = String() + folder_System + _slash + folder_Core;
+const String dir_profile        = String() + folder_Data + _slash + folder_Profile;
 
 enum FileToSave {
     AUDIT_DATA,
@@ -81,9 +80,9 @@ class SHIELDLib {
 
         //Core functionalities
         void startDevice();
-        void displayDateTime();
         void protocolbegin();
         void listen();
+        void getHealthStatus();
 
     private:
         byte CIRCADIAN[MAX_BLOCKS];   // Circadian
@@ -92,11 +91,25 @@ class SHIELDLib {
         unsigned char const INFO_TUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X54, 0X55, 0X4b};    //SHIELD-TUK
         unsigned char const INFO_PID[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X49, 0X44};    //SHIELD-PID
         
+        // Cryptography
+        uint32_t prof_start_time        = 0;
+        uint32_t profile_interval       = 15;    //Change this to reflect the interval for the next Profile issuance (in minutes)
+        const uint32_t PROFILE_PERIOD   = profile_interval * 60;
+
+        uint32_t circ_start_time        = 0;
+        const uint32_t CIRCADIAN_PERIOD = 86400;   // Number of seconds in a day
+
+        uint32_t currentSN = 0;     // Current SequenceNumber
+        bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)
+        String smart_tag = "";
+        StaticJsonDocument<200> doc;
+
         // Hardware components
         void initOLED();
         void initSDCard();
         bool beginClock();
         void openBLE();
+        void initIOExpander();
 
         // Utility
         void syncClock();
@@ -126,7 +139,7 @@ class SHIELDLib {
         // Cryptography Utilities
 
         // SequenceNumber
-        String SNtoString(uint32_t epoch);                   //Converts uint32_t SequenceNumber to its String representation
+        String ulongtoString(uint32_t epoch);                   //Converts uint32_t SequenceNumber to its String representation
         String bytetostring(byte array[]);                      //Converts a byte array to its hexadecima/string representation
         void stringtobyte(uint8_t* location, String rawdata);   //Converts a string to a byte array
 

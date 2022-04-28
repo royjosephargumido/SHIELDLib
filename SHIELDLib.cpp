@@ -3,24 +3,18 @@
 File file;          // File System
 RTC_DS3231 rtc;     // RTC Module
 WiFiUDP ntpUDP;     // Network Time Protocol (used to sync RTC with internet time)
+PCF8574 pcf8574(0x20);  // Set i2c address
 SoftwareSerial ble(D3, D4);     // BLE Module
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);    // Required for the syncing of local time with the internet time
 Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);        // OLED module
 
+bool displayDT = true;
 
-// Cryptography
-uint32_t prof_start_time        = 0;
-uint32_t profile_interval       = 15;    //Change this to reflect the interval for the next Profile issuance (in minutes)
-const uint32_t PROFILE_PERIOD   = profile_interval * 60;
-
-uint32_t circ_start_time        = 0;
-const uint32_t CIRCADIAN_PERIOD = 86400;   // Number of seconds in a day
-
-uint32_t currentSN = 0;     // Current SequenceNumber
-bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)
-
-String smart_tag = "";
-
+/**
+ * @brief SHIELD's Constructor
+ * 
+ * @return ICACHE_FLASH_ATTR 
+ */
 ICACHE_FLASH_ATTR SHIELDLib::SHIELDLib() {
 	lastYield = 0;
 }
@@ -32,6 +26,7 @@ void SHIELDLib::startDevice() {
     initSDCard();   // Initializes the SD Card module
     beginClock();   // Begins the clock
     openBLE();      // Opens the BLE module
+    initIOExpander();
 
     syncClock();    // Conncets to a saved WiFi and syncs local time with internet time
 
@@ -41,38 +36,10 @@ void SHIELDLib::startDevice() {
     prof_start_time = currSN + PROFILE_PERIOD;
 }
 
-void SHIELDLib::displayDateTime() {
-    if(beginClock()) {
-        DateTime now = rtc.now();
-
-        // Adding the '0' Padding to minute if minute is lesser than 10
-        String Min = (now.minute() < 10) ? "0" + (String)now.minute() : (String)now.minute();
-        String Sec = (now.second() < 10) ? "0" + (String)now.second() : (String)now.second();
-
-        String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
-        
-        String Time = "";
-        if(now.hour() > 12) {   //Check if PM
-            Time = (String)(now.hour() % 12) + ':' + Min  + ":" + Sec;
-        } else {    // Time is AM
-            Time = (now.hour() == 0) ? "12" : (String)now.hour();            
-            Time += ':' + Min + ":" + Sec;
-        }
-        
-        char _time[12];
-        char _date[11];
-        Time.toCharArray(_time, 11);
-        Date.toCharArray(_date, 10);
-
-        displayMessage(_time, _date);
-    }
-}
-
 void SHIELDLib::protocolbegin() {
     currentSN = getSequenceNumber();
     char* _dt = (char*)malloc(50);
     
-    //CIRCADIAN
     if(currentSN == circ_start_time || ftb) {        
         String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
         save(CIRCADIAN_DATA, circadian);
@@ -88,7 +55,6 @@ void SHIELDLib::protocolbegin() {
         if(!ftb) { circ_start_time += CIRCADIAN_PERIOD; }
     }    
     
-    //SmartTag
     if(currentSN == prof_start_time || ftb) {
         // PUK
         unsigned char salt_puk[MAX_BLOCKS] = {};
@@ -111,12 +77,12 @@ void SHIELDLib::protocolbegin() {
 
         //Encrpyt the PUK using the Circadian and the TUK
         smart_tag = encrypt(CIRCADIAN, PUK, TUK);               // Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
+        //uint32_t CV = getCIRRUSVersion();
+        //cipher = ulongtoString(currentSN) + '-' + cipher;
 
-        //Combine PUK, PID, and TUK to become as the Profile as a JSON document
         String profile = "";
-        StaticJsonDocument<192> doc;
 
-        doc["SN"] = SNtoString(currentSN);
+        doc["SN"] = ulongtoString(currentSN);
         doc["PUK"] = puk;
         doc["PID"] = pid;
         doc["TUK"] = tuk;
@@ -126,7 +92,7 @@ void SHIELDLib::protocolbegin() {
         sprintf(_dt, "%02d/%02d/%02d %02d:%02d:%02d", day(currentSN), month(currentSN), year(currentSN), hour(currentSN), minute(currentSN), second(currentSN));
         Serial.println(_dt);
         Serial.println("=========================================");
-        Serial.print("Smart Tag:\n");
+        Serial.print("SmartTag:\n");
         Serial.println(smart_tag);
         Serial.println("=========================================");
 
@@ -140,8 +106,8 @@ void SHIELDLib::protocolbegin() {
         Serial.println();
         Serial.println();
           
-        save(PROFILE_DATA, profile);        //Save Profile (PUK, PID, and TUK)
-        save(SMARTTAG_DATA, smart_tag);     //Save Smart Tag
+        save(SMARTTAG_DATA, smart_tag);
+        save(PROFILE_DATA, profile);
 
         if(!ftb) { prof_start_time += PROFILE_PERIOD; }
     }
@@ -161,15 +127,49 @@ void SHIELDLib::listen() {
         Serial.println("Connected.");
     }
 
-    if(message.length() >= 15) {
+    if(message.length() >= 30) {
         message.trim();
         Serial.println("Data received.");
         Serial.println(message.length());
         Serial.println(message);
         //save(TRANSCRIPT_DATA, message);
-        ble.println(smart_tag);
-        //Serial.flush();
-        //ble.flush();
+        ble.println("smart_tag");
+        Serial.flush();
+        ble.flush();
+    }
+}
+
+void SHIELDLib::getHealthStatus() {
+    uint8_t val = pcf8574.digitalRead(P1);
+
+	if (val == LOW) {        
+        if(beginClock()) {
+            DateTime now = rtc.now();
+
+            // Adding the '0' Padding to minute if minute is lesser than 10
+            String Min = (now.minute() < 10) ? "0" + (String)now.minute() : (String)now.minute();
+            String Sec = (now.second() < 10) ? "0" + (String)now.second() : (String)now.second();
+
+            String Date =  (String)now.month() + '/' + (String)now.day() + '/' + now.year();
+            
+            String Time = "";
+            if(now.hour() > 12) {   //Check if PM
+                Time = (String)(now.hour() % 12) + ':' + Min  + ":" + Sec;
+            } else {    // Time is AM
+                Time = (now.hour() == 0) ? "12" : (String)now.hour();            
+                Time += ':' + Min + ":" + Sec;
+            }
+            
+            char _time[12];
+            char _date[11];
+            Time.toCharArray(_time, 11);
+            Date.toCharArray(_date, 10);
+
+            displayMessage(_time, _date);
+        }
+    } else {
+        displayMessage("You're", "HEALTHY");
+        delay(5000);
     }
 }
 
@@ -205,6 +205,18 @@ bool SHIELDLib::beginClock() {
 
 void SHIELDLib::openBLE() {
     ble.begin(9600);
+}
+
+void SHIELDLib::initIOExpander() {
+    pcf8574.pinMode(P0, OUTPUT);    //Led
+	pcf8574.pinMode(P1, INPUT);     //Button
+
+	Serial.print("Init pcf8574...");
+	if (pcf8574.begin()){
+		Serial.println("OK");
+	}else{
+		Serial.println("KO");
+	}
 }
 
 /* UTILITIES */
@@ -278,7 +290,7 @@ void SHIELDLib::displayMessage(char* line1, char* line2) {
 /* FILE SYSTEM */
 
 void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
-    String __destination = getFilename(_destinationFile, SNtoString(getSequenceNumber()));
+    String __destination = getFilename(_destinationFile, ulongtoString(getSequenceNumber()));
 
     do {
         file = SD.open(__destination, FILE_WRITE);
@@ -308,7 +320,7 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
             break;
 
         case 3: //Transcript Folder
-            _dest = dir_memories + _slash + "transcript_" + SequenceNumber + file_extension;
+            _dest = dir_transcripts + _slash + "transcript_" + SequenceNumber + file_extension;
             break;
 
         case 4: //Dump Folder
@@ -321,6 +333,10 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
 
         case 6: //Profile Folder
             _dest = dir_profile + _slash + "profile_" + SequenceNumber + file_extension;
+            break;
+
+        case 7: //SmartTags Folder
+            _dest = dir_smarttags + _slash + "smarttag_" + SequenceNumber + file_extension;
             break;
     }
 
@@ -420,7 +436,7 @@ String SHIELDLib::decrypt(const unsigned char *key, const unsigned char *data, c
 
 /* CRYPTOGRAPHY UTILITIES */
 
-String SHIELDLib::SNtoString(uint32_t epoch) {
+String SHIELDLib::ulongtoString(uint32_t epoch) {
     char* _dt = (char*)malloc(50);
     ltoa(epoch, _dt, 10);
     return String(_dt);
