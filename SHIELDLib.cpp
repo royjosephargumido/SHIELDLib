@@ -19,12 +19,8 @@ const uint32_t CIRCADIAN_PERIOD = 86400;   // Number of seconds in a day
 uint32_t currentSN = 0;     // Current SequenceNumber
 bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)
 
+String smart_tag = "";
 
-/**
- * @brief SHIELD's Constructor
- * 
- * @return ICACHE_FLASH_ATTR 
- */
 ICACHE_FLASH_ATTR SHIELDLib::SHIELDLib() {
 	lastYield = 0;
 }
@@ -76,6 +72,7 @@ void SHIELDLib::protocolbegin() {
     currentSN = getSequenceNumber();
     char* _dt = (char*)malloc(50);
     
+    //CIRCADIAN
     if(currentSN == circ_start_time || ftb) {        
         String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
         save(CIRCADIAN_DATA, circadian);
@@ -91,6 +88,7 @@ void SHIELDLib::protocolbegin() {
         if(!ftb) { circ_start_time += CIRCADIAN_PERIOD; }
     }    
     
+    //SmartTag
     if(currentSN == prof_start_time || ftb) {
         // PUK
         unsigned char salt_puk[MAX_BLOCKS] = {};
@@ -112,18 +110,24 @@ void SHIELDLib::protocolbegin() {
         stringtobyte(PID, pid);                                     //Store the generated PID
 
         //Encrpyt the PUK using the Circadian and the TUK
-        String cipher = encrypt(CIRCADIAN, PUK, TUK);               // Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
-        //uint32_t CV = getCIRRUSVersion();
-        cipher = ulongtoString(currentSN) + '-' + cipher;
+        smart_tag = encrypt(CIRCADIAN, PUK, TUK);               // Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
 
-        // encode_base64() places a null terminator automatically, because the output is a string
-        unsigned int base64_length = encode_base64((unsigned char*)cipher.c_str(), strlen(cipher.c_str()) + 1, smart_tag);
-        
+        //Combine PUK, PID, and TUK to become as the Profile as a JSON document
+        String profile = "";
+        StaticJsonDocument<192> doc;
+
+        doc["SN"] = SNtoString(currentSN);
+        doc["PUK"] = puk;
+        doc["PID"] = pid;
+        doc["TUK"] = tuk;
+
+        serializeJson(doc, profile);
+
         sprintf(_dt, "%02d/%02d/%02d %02d:%02d:%02d", day(currentSN), month(currentSN), year(currentSN), hour(currentSN), minute(currentSN), second(currentSN));
         Serial.println(_dt);
         Serial.println("=========================================");
         Serial.print("Smart Tag:\n");
-        Serial.println((char *) smart_tag);
+        Serial.println(smart_tag);
         Serial.println("=========================================");
 
         /*
@@ -132,25 +136,12 @@ void SHIELDLib::protocolbegin() {
         Serial.println("PID:\t" + pid);
         Serial.println("=========================================");
         Serial.println("Profile:\n" + cipher);
-
-        // Decoding base64
-        char rawdata[32];
-        decode_base64(smart_tag, (unsigned char*)rawdata);
-        Serial.print("Rawdata:\n");
-        Serial.println((char *) rawdata);
-        Serial.println("=========================================");
-        char* _cip = (char*)malloc(32);
-        sprintf(_cip, "%s", cipher);
-        Serial.print("Status: ");
-        if (strcmp(_cip, rawdata) == 0)
-            Serial.println("Passed.");
-        else
-            Serial.println("Passed.");
         */
         Serial.println();
         Serial.println();
           
-        save(PROFILE_DATA, (char*)smart_tag);
+        save(PROFILE_DATA, profile);        //Save Profile (PUK, PID, and TUK)
+        save(SMARTTAG_DATA, smart_tag);     //Save Smart Tag
 
         if(!ftb) { prof_start_time += PROFILE_PERIOD; }
     }
@@ -163,22 +154,22 @@ void SHIELDLib::listen() {
     message.trim();
 
     if(ble.available() > 0) {
-        message = ble.readStringUntil('\0');
+        message = ble.readString();
     }
 
     if(message.length() == 11) {
         Serial.println("Connected.");
     }
 
-    if(message.length() >= 60) {
+    if(message.length() >= 15) {
         message.trim();
         Serial.println("Data received.");
         Serial.println(message.length());
         Serial.println(message);
-        save(TRANSCRIPT_DATA, message);
-        ble.println((char *) smart_tag);
-        Serial.flush();
-        ble.flush();
+        //save(TRANSCRIPT_DATA, message);
+        ble.println(smarttag);
+        //Serial.flush();
+        //ble.flush();
     }
 }
 
@@ -287,7 +278,7 @@ void SHIELDLib::displayMessage(char* line1, char* line2) {
 /* FILE SYSTEM */
 
 void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
-    String __destination = getFilename(_destinationFile, ulongtoString(getSequenceNumber()));
+    String __destination = getFilename(_destinationFile, SNtoString(getSequenceNumber()));
 
     do {
         file = SD.open(__destination, FILE_WRITE);
@@ -427,73 +418,9 @@ String SHIELDLib::decrypt(const unsigned char *key, const unsigned char *data, c
     return bytetostring(output);
 }
 
-unsigned int SHIELDLib::encode_base64(unsigned char input[], unsigned int input_length, unsigned char output[]) {
-    unsigned int full_sets = input_length/3;
-
-    // While there are still full sets of 24 bits...
-    for(unsigned int i = 0; i < full_sets; ++i) {
-        output[0] = binary_to_base64(                         input[0] >> 2);
-        output[1] = binary_to_base64((input[0] & 0x03) << 4 | input[1] >> 4);
-        output[2] = binary_to_base64((input[1] & 0x0F) << 2 | input[2] >> 6);
-        output[3] = binary_to_base64( input[2] & 0x3F);
-
-        input += 3;
-        output += 4;
-    }
-
-    switch(input_length % 3) {
-        case 0:
-            output[0] = '\0';
-            break;
-        case 1:
-            output[0] = binary_to_base64(                         input[0] >> 2);
-            output[1] = binary_to_base64((input[0] & 0x03) << 4);
-            output[2] = '=';
-            output[3] = '=';
-            output[4] = '\0';
-            break;
-        case 2:
-            output[0] = binary_to_base64(                         input[0] >> 2);
-            output[1] = binary_to_base64((input[0] & 0x03) << 4 | input[1] >> 4);
-            output[2] = binary_to_base64((input[1] & 0x0F) << 2);
-            output[3] = '=';
-            output[4] = '\0';
-            break;
-    }
-
-    return encode_base64_length(input_length);
-}
-
-unsigned int SHIELDLib::decode_base64(unsigned char input[], unsigned char output[]) {
-    unsigned int input_length = -1;
-    unsigned int output_length = decode_base64_length(input, input_length);
-
-    // While there are still full sets of 24 bits...
-    for(unsigned int i = 2; i < output_length; i += 3) {
-        output[0] = base64_to_binary(input[0]) << 2 | base64_to_binary(input[1]) >> 4;
-        output[1] = base64_to_binary(input[1]) << 4 | base64_to_binary(input[2]) >> 2;
-        output[2] = base64_to_binary(input[2]) << 6 | base64_to_binary(input[3]);
-
-        input += 4;
-        output += 3;
-    }
-
-    switch(output_length % 3) {
-        case 1:
-            output[0] = base64_to_binary(input[0]) << 2 | base64_to_binary(input[1]) >> 4;
-            break;
-        case 2:
-            output[0] = base64_to_binary(input[0]) << 2 | base64_to_binary(input[1]) >> 4;
-            output[1] = base64_to_binary(input[1]) << 4 | base64_to_binary(input[2]) >> 2;
-            break;
-    }
-
-    return output_length;
-}
-
 /* CRYPTOGRAPHY UTILITIES */
 
-String SHIELDLib::ulongtoString(uint32_t epoch) {
+String SHIELDLib::SNtoString(uint32_t epoch) {
     char* _dt = (char*)malloc(50);
     ltoa(epoch, _dt, 10);
     return String(_dt);
@@ -566,67 +493,6 @@ ICACHE_FLASH_ATTR char SHIELDLib::randomByte(void) {
     for (uint8_t i = 8; i--;)
         result += result + whiten();
     return result;
-}
-
-/* BASE64 ENCODING UTILITIES */
-
-unsigned char SHIELDLib::binary_to_base64(unsigned char v) {
-    // Capital letters - 'A' is ascii 65 and bas88e64 0
-    if(v < 26) return v + 'A';
-
-    // Lowercase letters - 'a' is ascii 97 and base64 26
-    if(v < 52) return v + 71;
-
-    // Digits - '0' is ascii 48 and base64 52
-    if(v < 62) return v - 4;
-
-    // '+' is ascii 43 and base64 62
-    if(v == 62) return '+';
-
-    // '/' is ascii 47 and base64 63
-    if(v == 63) return '/';
-
-    return 64;
-}
-
-unsigned int SHIELDLib::encode_base64_length(unsigned int input_length) {
-    return (input_length + 2)/3*4;
-}
-
-/* BASE64 ENCODING UTILITIES */
-
-unsigned char SHIELDLib::base64_to_binary(unsigned char c) {
-    // Capital letters - 'A' is ascii 65 and base64 0
-    if('A' <= c && c <= 'Z') return c - 'A';
-
-    // Lowercase letters - 'a' is ascii 97 and base64 26
-    if('a' <= c && c <= 'z') return c - 71;
-
-    // Digits - '0' is ascii 48 and base64 52
-    if('0' <= c && c <= '9') return c + 4;
-
-    // '+' is ascii 43 and base64 62
-    if(c == '+') return 62;
-
-    // '/' is ascii 47 and base64 63
-    if(c == '/') return 63;
-
-    return 255;
-}
-
-unsigned int SHIELDLib::decode_base64_length(unsigned char input[], unsigned int input_length) {
-    unsigned char *start = input;
-
-    while(base64_to_binary(input[0]) < 64 && (unsigned int) (input - start) < input_length) {
-        ++input;
-    }
-
-    input_length = (unsigned int) (input - start);
-    return input_length/4*3 + (input_length % 4 ? input_length % 4 - 1 : 0);
-}
-
-unsigned int SHIELDLib::decode_base64_length(unsigned char input[]) {
-    return decode_base64_length(input, -1);
 }
 
 SHIELDLib shield;
