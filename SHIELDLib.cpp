@@ -167,7 +167,7 @@ void SHIELDLib::listen() {
         Serial.println(message.length());
         Serial.println(message);
         //save(TRANSCRIPT_DATA, message);
-        ble.println(smarttag);
+        ble.println(smart_tag);
         //Serial.flush();
         //ble.flush();
     }

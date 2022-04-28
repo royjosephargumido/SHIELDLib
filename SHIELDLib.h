@@ -126,7 +126,7 @@ class SHIELDLib {
         // Cryptography Utilities
 
         // SequenceNumber
-        String ulongtoString(uint32_t epoch);                   //Converts uint32_t SequenceNumber to its String representation
+        String SNtoString(uint32_t epoch);                   //Converts uint32_t SequenceNumber to its String representation
         String bytetostring(byte array[]);                      //Converts a byte array to its hexadecima/string representation
         void stringtobyte(uint8_t* location, String rawdata);   //Converts a string to a byte array
 
