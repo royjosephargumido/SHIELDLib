@@ -22,11 +22,13 @@ ICACHE_FLASH_ATTR SHIELDLib::SHIELDLib() {
 /* CORE FUNCTIONALITIES */
 
 void SHIELDLib::startDevice() {
+    
     initOLED();     // Initializes the OLED display
-    initSDCard();   // Initializes the SD Card module
+    //initSDCard();   // Initializes the SD Card module
     beginClock();   // Begins the clock
     openBLE();      // Opens the BLE module
     initIOExpander();
+    powerOn();
 
     syncClock();    // Conncets to a saved WiFi and syncs local time with internet time
 
@@ -42,7 +44,7 @@ void SHIELDLib::protocolbegin() {
     
     if(currentSN == circ_start_time || ftb) {        
         String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
-        save(CIRCADIAN_DATA, circadian);
+        //save(CIRCADIAN_DATA, circadian);
 
         sprintf(_dt, "%02d/%02d/%02d %02d:%02d:%02d", day(currentSN), month(currentSN), year(currentSN), hour(currentSN), minute(currentSN), second(currentSN));
         Serial.println(_dt);
@@ -106,8 +108,8 @@ void SHIELDLib::protocolbegin() {
         Serial.println();
         Serial.println();
           
-        save(SMARTTAG_DATA, smart_tag);
-        save(PROFILE_DATA, profile);
+        //save(SMARTTAG_DATA, smart_tag);
+        //save(PROFILE_DATA, profile);
 
         if(!ftb) { prof_start_time += PROFILE_PERIOD; }
     }
@@ -175,6 +177,11 @@ void SHIELDLib::getHealthStatus() {
 
 /* HARDWARE COMPONENTS */
 
+void SHIELDLib::powerOn() {
+    pcf8574.pinMode(P0, OUTPUT);
+    pcf8574.digitalWrite(P0, HIGH);
+}
+
 void SHIELDLib::initOLED() {
     if(!deviceOLED.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         Serial.println(F("OLED Display failed to start."));
@@ -208,15 +215,13 @@ void SHIELDLib::openBLE() {
 }
 
 void SHIELDLib::initIOExpander() {
-    pcf8574.pinMode(P0, OUTPUT);    //Led
-	pcf8574.pinMode(P1, INPUT);     //Button
-
-	Serial.print("Init pcf8574...");
+	Serial.print("IO Expander ");
 	if (pcf8574.begin()){
 		Serial.println("OK");
 	}else{
 		Serial.println("KO");
 	}
+    pcf8574.pinMode(P1, INPUT);     //Button
 }
 
 /* UTILITIES */

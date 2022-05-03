@@ -105,6 +105,7 @@ class SHIELDLib {
         StaticJsonDocument<200> doc;
 
         // Hardware components
+        void powerOn();
         void initOLED();
         void initSDCard();
         bool beginClock();
