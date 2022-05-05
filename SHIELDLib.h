@@ -102,6 +102,7 @@ class SHIELDLib {
         uint32_t currentSN = 0;     // Current SequenceNumber
         bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)
         String smart_tag = "";
+        String HealthStatus = "";
         StaticJsonDocument<200> doc;
         StaticJsonDocument<200> json_config;
 
@@ -124,6 +125,7 @@ class SHIELDLib {
         void save(FileToSave _destinationFile, String _rawdata);
         String getFilename(FileToSave _SHIELDFile, String SequenceNumber);
         void Settings();
+        String loadSettings();
 
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 

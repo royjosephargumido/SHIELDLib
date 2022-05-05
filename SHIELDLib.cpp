@@ -3,12 +3,13 @@
 File file;                      // File System
 RTC_DS3231 rtc;                 // RTC Module
 WiFiUDP ntpUDP;                 // Network Time Protocol (used to sync RTC with internet time)
-PCF8574 pcf8574(0x20);          // Set i2c address
+PCF8574 pcf8574(0x20);          // IO Expander Module
 SoftwareSerial ble(D3, D4);     // BLE Module
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);    // Required for the syncing of local time with the internet time
 Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);        // OLED module
 
 bool displayDT = true;
+String __data = "";
 
 /**
  * @brief SHIELD's Constructor
@@ -51,7 +52,7 @@ void SHIELDLib::protocolbegin() {
         Serial.println();
 
         if(!ftb) { circ_start_time += CIRCADIAN_PERIOD; }
-    }    
+    }
     
     if(currentSN == prof_start_time || ftb) {
         // PUK
@@ -166,7 +167,12 @@ void SHIELDLib::getHealthStatus() {
             displayMessage(_time, _date);
         }
     } else {
-        displayMessage("You're", "HEALTHY");
+        if(HealthStatus == "U1") {
+            displayMessage("You are", "Healthy");
+        } else {
+            displayMessage("You are", "Exposed");
+        }
+        
         delay(5000);
     }
 }
@@ -370,20 +376,21 @@ void SHIELDLib::Settings() {
         }
         data[i] = '\0';
 
+        file.close();
+
         decodeJsonData(deserializeJson(json_config, data));
 
         profile_interval    = json_config["PI"];
         uint32_t EOS        = json_config["EOS"];
         const char* HS      = json_config["HS"];
+        HealthStatus = (String)HS;
 
         circ_start_time = EOS + CIRCADIAN_PERIOD;
         prof_start_time = EOS + PROFILE_PERIOD;
 
         Serial.println("PI:\t" + ulongtoString(profile_interval));
         Serial.println("EOS:\t" + ulongtoString(EOS));
-        Serial.println("HS:\t" + (String)HS);
-
-        file.close();
+        Serial.println("HS:\t" + HealthStatus);
 
         Serial.println("Settings loaded.");
     } else {
@@ -409,6 +416,29 @@ void SHIELDLib::Settings() {
         
         Serial.println("Done writing default settings.");
     }
+}
+
+String SHIELDLib::loadSettings() {
+    char data[500];
+    int i = 0;
+
+    do {
+        file = SD.open(getFilename(CONFIG_DATA, ""));
+        if(!file) {
+            Serial.println("Unable to load settings!");
+            delay(500);
+        }
+    }while(!file);
+
+    while(file.available()) {
+        data[i] = file.read();
+        i++;
+    }
+    data[i] = '\0';
+
+    file.close();
+    
+    return String(data);
 }
 
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
