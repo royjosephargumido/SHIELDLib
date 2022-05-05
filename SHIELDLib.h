@@ -46,7 +46,7 @@
 #define folder_System           "System"
 #define folder_Core             "Core"
 #define folder_Dumps            "Dumps"
-#define fn_CoreConfiguration    "BeaconConfig"
+#define fn_CoreConfiguration    "SHIELDConfig"
 
 const String dir_audit          = String() + folder_Data + _slash + folder_Audit;
 const String dir_circadian      = String() + folder_Data + _slash + folder_Circadian;
@@ -103,6 +103,7 @@ class SHIELDLib {
         bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)
         String smart_tag = "";
         StaticJsonDocument<200> doc;
+        StaticJsonDocument<200> json_config;
 
         // Hardware components
         void powerOn();
@@ -117,11 +118,12 @@ class SHIELDLib {
         void connecttoWIFI(char* wifi_ssid, char* wifi_password);
         void displayError(ErrorCodes err);
         void displayMessage(char* line1, char* line2);
+        void decodeJsonData(const DeserializationError error);
 
         // File System
         void save(FileToSave _destinationFile, String _rawdata);
         String getFilename(FileToSave _SHIELDFile, String SequenceNumber);
-
+        void Settings();
 
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 

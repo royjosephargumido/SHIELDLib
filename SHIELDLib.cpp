@@ -1,9 +1,9 @@
 #include "SHIELDLib.h"
 
-File file;          // File System
-RTC_DS3231 rtc;     // RTC Module
-WiFiUDP ntpUDP;     // Network Time Protocol (used to sync RTC with internet time)
-PCF8574 pcf8574(0x20);  // Set i2c address
+File file;                      // File System
+RTC_DS3231 rtc;                 // RTC Module
+WiFiUDP ntpUDP;                 // Network Time Protocol (used to sync RTC with internet time)
+PCF8574 pcf8574(0x20);          // Set i2c address
 SoftwareSerial ble(D3, D4);     // BLE Module
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);    // Required for the syncing of local time with the internet time
 Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);        // OLED module
@@ -22,20 +22,15 @@ ICACHE_FLASH_ATTR SHIELDLib::SHIELDLib() {
 /* CORE FUNCTIONALITIES */
 
 void SHIELDLib::startDevice() {
-    
-    initOLED();     // Initializes the OLED display
-    //initSDCard();   // Initializes the SD Card module
-    beginClock();   // Begins the clock
-    openBLE();      // Opens the BLE module
-    initIOExpander();
-    powerOn();
+    initOLED();         // Initializes the OLED display
+    initSDCard();       // Initializes the SD Card module
+    beginClock();       // Begins the clock
+    openBLE();          // Opens the BLE module
+    initIOExpander();   //Starts the IO Expander Module
 
-    syncClock();    // Conncets to a saved WiFi and syncs local time with internet time
+    syncClock();        // Conncets to a saved WiFi and syncs local time with internet time
 
-    //Sets the beggining SequenceNumber for the issuance of Circadian and Profile
-    uint32_t currSN = getSequenceNumber();
-    circ_start_time = currSN + CIRCADIAN_PERIOD;
-    prof_start_time = currSN + PROFILE_PERIOD;
+    Settings();         //Opens or writes default configuration
 }
 
 void SHIELDLib::protocolbegin() {
@@ -44,13 +39,14 @@ void SHIELDLib::protocolbegin() {
     
     if(currentSN == circ_start_time || ftb) {        
         String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
-        //save(CIRCADIAN_DATA, circadian);
+        save(CIRCADIAN_DATA, circadian);
 
         sprintf(_dt, "%02d/%02d/%02d %02d:%02d:%02d", day(currentSN), month(currentSN), year(currentSN), hour(currentSN), minute(currentSN), second(currentSN));
+        Serial.println("===============================================");
+        Serial.print("Generated:\t");
         Serial.println(_dt);
-        Serial.println("=========================================");
         Serial.println("CIRCADIAN:\t" + circadian);
-        Serial.println("=========================================");
+        Serial.println("===============================================");
         Serial.println();
         Serial.println();
 
@@ -62,23 +58,23 @@ void SHIELDLib::protocolbegin() {
         unsigned char salt_puk[MAX_BLOCKS] = {};
         trng(salt_puk, 16);                                         //Generate the salts for PUK using TRNG
         String puk = perfHKDF(CIRCADIAN, salt_puk, INFO_PUK, 16);   //Generate the PUK using HKDF
-        byte PUK[MAX_BLOCKS];                                       // Profile Unlocking Key
+        byte PUK[MAX_BLOCKS];                                       //Profile Unlocking Key
         stringtobyte(PUK, puk);                                     //Store the generated PUK
 
         // TUK
         unsigned char salt_tuk[MAX_BLOCKS] = {};
         trng(salt_tuk, 16);                                         //Generate the salts for TUK using TRNG
         String tuk = perfHKDF(CIRCADIAN, salt_tuk, INFO_TUK, 16);   //Generate the TUK using HKDF
-        byte TUK[MAX_BLOCKS];                                       // Transcript Unlocking Key
+        byte TUK[MAX_BLOCKS];                                       //Transcript Unlocking Key
         stringtobyte(TUK, tuk);                                     //Store the generated TUK
 
         //PID
         String pid = perfHKDF(CIRCADIAN, PUK, INFO_PID, 16);        //Generate the PID using HKDF
-        byte PID[MAX_BLOCKS];                                       // Profile Identifier
+        byte PID[MAX_BLOCKS];                                       //Profile Identifier
         stringtobyte(PID, pid);                                     //Store the generated PID
 
         //Encrpyt the PUK using the Circadian and the TUK
-        smart_tag = encrypt(CIRCADIAN, PUK, TUK);               // Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
+        smart_tag = encrypt(CIRCADIAN, PUK, TUK);                   //Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
         //uint32_t CV = getCIRRUSVersion();
         //cipher = ulongtoString(currentSN) + '-' + cipher;
 
@@ -92,11 +88,12 @@ void SHIELDLib::protocolbegin() {
         serializeJson(doc, profile);
 
         sprintf(_dt, "%02d/%02d/%02d %02d:%02d:%02d", day(currentSN), month(currentSN), year(currentSN), hour(currentSN), minute(currentSN), second(currentSN));
+        Serial.println("===============================================");
+        Serial.print("Generated:\t");
         Serial.println(_dt);
-        Serial.println("=========================================");
-        Serial.print("SmartTag:\n");
+        Serial.print("SmartTag:\t");
         Serial.println(smart_tag);
-        Serial.println("=========================================");
+        Serial.println("===============================================");
 
         /*
         Serial.println("PUK:\t" + puk);
@@ -106,10 +103,9 @@ void SHIELDLib::protocolbegin() {
         Serial.println("Profile:\n" + cipher);
         */
         Serial.println();
-        Serial.println();
           
-        //save(SMARTTAG_DATA, smart_tag);
-        //save(PROFILE_DATA, profile);
+        save(SMARTTAG_DATA, smart_tag);
+        save(PROFILE_DATA, profile);
 
         if(!ftb) { prof_start_time += PROFILE_PERIOD; }
     }
@@ -202,9 +198,9 @@ void SHIELDLib::initSDCard() {
 
 bool SHIELDLib::beginClock() {
     while(!rtc.begin()) {
-        Serial.println(F("RTC missing"));
+        //Serial.println(F("RTC missing"));
         displayError(CLOCK_MISSING);        
-        delay(50);
+        //delay(50);
         return false;
     }
     return true;
@@ -215,13 +211,8 @@ void SHIELDLib::openBLE() {
 }
 
 void SHIELDLib::initIOExpander() {
-	Serial.print("IO Expander ");
-	if (pcf8574.begin()){
-		Serial.println("OK");
-	}else{
-		Serial.println("KO");
-	}
-    pcf8574.pinMode(P1, INPUT);     //Button
+    pcf8574.begin();
+    pcf8574.pinMode(P1, INPUT);     //Check Health Status Button
 }
 
 /* UTILITIES */
@@ -292,17 +283,25 @@ void SHIELDLib::displayMessage(char* line1, char* line2) {
     deviceOLED.display();
 }
 
+void SHIELDLib::decodeJsonData(const DeserializationError error){
+    if(error) {
+        Serial.print(F("Unable to decode message! Error: "));
+        Serial.println(error.c_str());
+    }
+}
+
 /* FILE SYSTEM */
 
 void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
-    String __destination = getFilename(_destinationFile, ulongtoString(getSequenceNumber()));
+    String __destination = getFilename(_destinationFile, ulongtoString(currentSN));
 
     do {
         file = SD.open(__destination, FILE_WRITE);
+        /*
         if(file) {
             //Serial.println("Unable to create the file!");
-            delay(500);
-        }
+            //delay(500);
+        }*/
     }while(!file);
 
     file.print(_rawdata);
@@ -333,7 +332,7 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
             break;
 
         case 5: //Config Folder
-            _dest = dir_core + _slash + "beaconconfig" + file_extension;
+            _dest = dir_core + _slash + fn_CoreConfiguration + file_extension;
             break;
 
         case 6: //Profile Folder
@@ -346,6 +345,70 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
     }
 
     return _dest;
+}
+
+void SHIELDLib::Settings() {
+    //If the Settings file is not existing, it's the device First Time Boot (FTB)
+    //If existing, load settings
+    //else, write default settings
+
+    if(SD.exists(getFilename(CONFIG_DATA, ""))) {
+        char data[500];
+        int i = 0;
+
+        do {
+            file = SD.open(getFilename(CONFIG_DATA, ""));
+            if(!file) {
+                Serial.println("Unable to load settings!");
+                delay(500);
+            }
+        }while(!file);
+
+        while(file.available()) {
+            data[i] = file.read();
+            i++;
+        }
+        data[i] = '\0';
+
+        decodeJsonData(deserializeJson(json_config, data));
+
+        profile_interval    = json_config["PI"];
+        uint32_t EOS        = json_config["EOS"];
+        const char* HS      = json_config["HS"];
+
+        circ_start_time = EOS + CIRCADIAN_PERIOD;
+        prof_start_time = EOS + PROFILE_PERIOD;
+
+        Serial.println("PI:\t" + ulongtoString(profile_interval));
+        Serial.println("EOS:\t" + ulongtoString(EOS));
+        Serial.println("HS:\t" + (String)HS);
+
+        file.close();
+
+        Serial.println("Settings loaded.");
+    } else {
+        SD.mkdir(dir_core);
+
+        do {
+            file = SD.open(getFilename(CONFIG_DATA, ""), FILE_WRITE);
+            if(file) {
+                Serial.println("Unable to create the settings file!");
+                delay(500);
+            }
+        }while(!file);
+
+        json_config["PI"]  = 15;                            //ProfileInterval in minutes
+        json_config["EOS"] = ulongtoString(getSequenceNumber());     //Epoch Time on Startup
+        json_config["HS"]  = "U1";                          //HealthStatusCode
+
+        String rawData = "";
+        serializeJson(json_config, rawData);
+
+        file.print(rawData);
+        file.close();
+        
+        Serial.println("Done writing default settings.");
+    }
 }
 
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
