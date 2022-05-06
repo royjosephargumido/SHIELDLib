@@ -92,19 +92,6 @@ class SHIELDLib {
         unsigned char const INFO_PID[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X49, 0X44};    //SHIELD-PID
         
         // Cryptography
-        uint32_t prof_start_time        = 0;
-        uint32_t profile_interval       = 15;    //Change this to reflect the interval for the next Profile issuance (in minutes)
-        const uint32_t PROFILE_PERIOD   = profile_interval * 60;
-
-        uint32_t circ_start_time        = 0;
-        const uint32_t CIRCADIAN_PERIOD = 86400;   // Number of seconds in a day
-
-        uint32_t currentSN = 0;     // Current SequenceNumber
-        bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)
-        String smart_tag = "";
-        String HealthStatus = "";
-        StaticJsonDocument<200> doc;
-        StaticJsonDocument<200> json_config;
 
         // Hardware components
         void powerOn();
@@ -125,7 +112,7 @@ class SHIELDLib {
         void save(FileToSave _destinationFile, String _rawdata);
         String getFilename(FileToSave _SHIELDFile, String SequenceNumber);
         void Settings();
-        String loadSettings();
+        void changeHS(String newHS);
 
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 

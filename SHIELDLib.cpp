@@ -8,8 +8,23 @@ SoftwareSerial ble(D3, D4);     // BLE Module
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);    // Required for the syncing of local time with the internet time
 Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);        // OLED module
 
-bool displayDT = true;
-String __data = "";
+//========================= CACHE =========================
+uint32_t profile_interval;
+uint32_t EOS;
+String HealthStatus = "";
+//=========================================================
+
+uint32_t prof_start_time        = 0;
+const uint32_t PROFILE_PERIOD   = profile_interval * 60;
+
+uint32_t circ_start_time        = 0;
+const uint32_t CIRCADIAN_PERIOD = 86400;   // Number of seconds in a day
+
+uint32_t currentSN = 0;     // Current SequenceNumber
+bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)
+String smart_tag = "";
+StaticJsonDocument<200> doc;
+StaticJsonDocument<200> json_config;
 
 /**
  * @brief SHIELD's Constructor
@@ -359,9 +374,6 @@ void SHIELDLib::Settings() {
     //else, write default settings
 
     if(SD.exists(getFilename(CONFIG_DATA, ""))) {
-        char data[500];
-        int i = 0;
-
         do {
             file = SD.open(getFilename(CONFIG_DATA, ""));
             if(!file) {
@@ -370,6 +382,8 @@ void SHIELDLib::Settings() {
             }
         }while(!file);
 
+        char data[500];
+        int i = 0;
         while(file.available()) {
             data[i] = file.read();
             i++;
@@ -381,8 +395,9 @@ void SHIELDLib::Settings() {
         decodeJsonData(deserializeJson(json_config, data));
 
         profile_interval    = json_config["PI"];
-        uint32_t EOS        = json_config["EOS"];
+        EOS                 = json_config["EOS"];
         const char* HS      = json_config["HS"];
+
         HealthStatus = (String)HS;
 
         circ_start_time = EOS + CIRCADIAN_PERIOD;
@@ -400,45 +415,50 @@ void SHIELDLib::Settings() {
             file = SD.open(getFilename(CONFIG_DATA, ""), FILE_WRITE);
             if(file) {
                 Serial.println("Unable to create the settings file!");
-                delay(500);
+                delay(250);
             }
         }while(!file);
 
-        json_config["PI"]  = 15;                            //ProfileInterval in minutes
-        json_config["EOS"] = ulongtoString(getSequenceNumber());     //Epoch Time on Startup
-        json_config["HS"]  = "U1";                          //HealthStatusCode
+        json_config["PI"]  = 15;                                    //ProfileInterval in minutes
+        json_config["EOS"] = ulongtoString(getSequenceNumber());    //Epoch Time on Startup
+        json_config["HS"]  = "U1";                                  //HealthStatusCode
 
         String rawData = "";
         serializeJson(json_config, rawData);
 
-        file.print(rawData);
+        file.println(rawData);
         file.close();
         
         Serial.println("Done writing default settings.");
     }
 }
 
-String SHIELDLib::loadSettings() {
-    char data[500];
-    int i = 0;
+void SHIELDLib::changeHS(String newHS) {
+    //Loads the settings first
+    SD.remove(getFilename(CONFIG_DATA, ""));    //Deletes the Settings file for rewriting
+
+    SD.mkdir(dir_core);
 
     do {
-        file = SD.open(getFilename(CONFIG_DATA, ""));
-        if(!file) {
-            Serial.println("Unable to load settings!");
-            delay(500);
+        file = SD.open(getFilename(CONFIG_DATA, ""), FILE_WRITE);
+        if(file) {
+            Serial.println("Unable to create the settings file!");
+            delay(250);
         }
     }while(!file);
 
-    while(file.available()) {
-        data[i] = file.read();
-        i++;
-    }
-    data[i] = '\0';
+    json_config["PI"]  = profile_interval;                                    //ProfileInterval in minutes
+    json_config["EOS"] = ulongtoString(EOS);    //Epoch Time on Startup
+    json_config["HS"]  = newHS;                                  //HealthStatusCode
+    HealthStatus = newHS;
+    
+    String rawData = "";
+    serializeJson(json_config, rawData);
 
+    file.println(rawData);
     file.close();
     
-    return String(data);
+    Serial.println("Done writing default settings.");
 }
 
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
