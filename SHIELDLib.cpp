@@ -7,6 +7,7 @@ PCF8574 pcf8574(0x20);          // IO Expander Module
 SoftwareSerial ble(D3, D4);     // BLE Module
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);    // Required for the syncing of local time with the internet time
 Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);        // OLED module
+ESP8266WebServer server(80);    //Server on port 80
 
 //========================= CACHE =========================
 uint32_t profile_interval;
@@ -21,10 +22,26 @@ uint32_t circ_start_time        = 0;
 const uint32_t CIRCADIAN_PERIOD = 86400;   // Number of seconds in a day
 
 uint32_t currentSN = 0;     // Current SequenceNumber
-bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)
+bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)        
 String smart_tag = "";
 StaticJsonDocument<200> doc;
 StaticJsonDocument<200> json_config;
+char* _dt = (char*)malloc(50);
+
+//Web Server Components
+bool device_not_activated = true;
+bool logged_in = false;
+IPAddress myIP;
+
+String uname = "";
+String passkey = "";
+
+/* SHIELD Web Interface URL Route/Paths */
+const char* rootPath		= "/";
+const char* loginPath		= "/login.php";
+const char* activatePath	= "/activate.php";
+const char* menuPath		= "/main.php";
+const char* faqsPath		= "/faqs.php";
 
 /**
  * @brief SHIELD's Constructor
@@ -45,13 +62,33 @@ void SHIELDLib::startDevice() {
     initIOExpander();   //Starts the IO Expander Module
 
     syncClock();        // Conncets to a saved WiFi and syncs local time with internet time
-
+    beginWebServer();
     Settings();         //Opens or writes default configuration
+}
+
+void SHIELDLib::beginWebServer() {
+    Serial.println("Starting SHIELD Web Interface...");
+
+	WiFi.softAP(ssid, password);
+	myIP = WiFi.softAPIP();
+
+	server.on(rootPath, route_Root);
+	server.on(loginPath, route_Login);
+	server.on(activatePath, route_Activate);
+	server.on(menuPath, route_Main);
+	server.on(faqsPath, route_Faqs);
+
+	server.begin();
+
+	Serial.println("SHIELD Web Interface running.");
+	Serial.print("SSID: ");
+	Serial.println(ssid);
+	Serial.print("IP Address: ");
+	Serial.println(myIP);
 }
 
 void SHIELDLib::protocolbegin() {
     currentSN = getSequenceNumber();
-    char* _dt = (char*)malloc(50);
     
     if(currentSN == circ_start_time || ftb) {        
         String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
@@ -154,7 +191,7 @@ void SHIELDLib::listen() {
 }
 
 void SHIELDLib::getHealthStatus() {
-    uint8_t val = pcf8574.digitalRead(P1);
+    uint8_t val = digitalRead(D0);
 
 	if (val == LOW) {        
         if(beginClock()) {
@@ -192,12 +229,11 @@ void SHIELDLib::getHealthStatus() {
     }
 }
 
-/* HARDWARE COMPONENTS */
-
-void SHIELDLib::powerOn() {
-    pcf8574.pinMode(P0, OUTPUT);
-    pcf8574.digitalWrite(P0, HIGH);
+void SHIELDLib::handleWebServer() {
+    server.handleClient();
 }
+
+/* HARDWARE COMPONENTS */
 
 void SHIELDLib::initOLED() {
     if(!deviceOLED.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
@@ -234,21 +270,24 @@ void SHIELDLib::openBLE() {
 void SHIELDLib::initIOExpander() {
     pcf8574.begin();
     pcf8574.pinMode(P1, INPUT);     //Check Health Status Button
+
+    pinMode(D0, INPUT);
+    digitalWrite(D0, HIGH);
 }
 
 /* UTILITIES */
 
-const char *ssid     = "ODIMUGRA";
-const char *password = "odimugra023026";
-
 void SHIELDLib::syncClock() {
+    const char *_ssid     = "ODIMUGRA";
+    const char *_password = "odimugra023026";
+
     DateTime now = rtc.now();
     uint32_t _unixtime = now.unixtime();
 
     if(_unixtime < 1650652888) {
         displayMessage("Clock", "Syncing...");
 
-        WiFi.begin(ssid, password);
+        WiFi.begin(_ssid, _password);
 
         Serial.println("Connecting...");
         while ( WiFi.status() != WL_CONNECTED ) {
@@ -461,6 +500,135 @@ void SHIELDLib::changeHS(String newHS) {
     Serial.println("Done writing default settings.");
 }
 
+/* WEB SERVER */
+
+bool isloggedin() {
+	if(!logged_in) {
+		String html_payload = ERROR_page;
+		server.send(200, "text/html", html_payload);
+		return false;
+	}		
+	else {
+		return true;
+	}
+}
+
+void handleFTB() {
+	// This routine is executed when you open its IP in browser
+	if(device_not_activated) {
+		String html_payload = ACTIVATE_page;
+		server.send(200, "text/html", html_payload);
+	}
+	else {
+		String html_payload = LOGIN_page;
+		server.send(200, "text/html", html_payload);
+	}
+}
+
+void route_Root() {
+	handleFTB();
+}
+
+void route_Login() {
+	if(!device_not_activated) {
+		// This routine is executed when the LOGIN Page is called
+		String username = server.arg("username");
+		String password = server.arg("password");
+
+		if(passkey == password && username == uname) {
+			Serial.println();
+			Serial.print("Username: ");
+			Serial.println(username);
+
+			Serial.print("Password: ");
+			Serial.println(passkey);
+			
+			logged_in = true;
+
+			String html_payload = MAIN_page;
+			server.send(200, "text/html", html_payload);
+		} else {
+			String html_payload = LOGIN_page;
+			server.send(200, "text/html", html_payload);
+		}
+	} else {
+        String html_payload = LOGIN_page;
+        server.send(200, "text/html", html_payload);
+    }
+}
+
+void route_Activate() {
+	// This routine is executed when you press submit
+	uname = server.arg("username");
+	passkey = server.arg("password"); 
+	String psw_repeat = server.arg("psw_repeat");
+
+	Serial.println();
+	Serial.print("Username: ");
+	Serial.println(uname);
+
+	Serial.print("Password: ");
+	Serial.println(passkey);
+
+	Serial.print("Repeat: ");
+	Serial.println(psw_repeat);
+
+	if(passkey == psw_repeat) {
+		device_not_activated = false;
+		String html_payload = LOGIN_page;
+		server.send(200, "text/html", html_payload);
+	} else {
+		String html_payload = ACTIVATE_page;
+		server.send(200, "text/html", html_payload);
+	}
+}
+
+void route_Faqs() {
+	if(isloggedin()) {
+		String html_payload = FAQS_page;
+		server.send(200, "text/html", html_payload);
+	}
+}
+
+void route_Main() {
+	if(!device_not_activated) {
+		// This routine is executed when the LOGIN Page is called
+		String username = server.arg("username");
+		String password = server.arg("password");
+
+		if(server.arg("username") != "") {
+			if(passkey == password && username == uname) {
+				Serial.println();
+				Serial.print("Username: ");
+				Serial.println(uname);
+
+				Serial.print("Password: ");
+				Serial.println(passkey);
+
+				device_not_activated = false;
+				logged_in = true;
+				//String s = "<a href='/logout'> Logout </a>";
+				String html_payload = MAIN_page;
+				server.send(200, "text/html", html_payload);
+			} else {
+				String html_payload = LOGIN_page;
+				server.send(200, "text/html", html_payload);
+			}
+		} else {
+			if(isloggedin()) {
+                String case_number = server.arg("case_number");
+
+                if(case_number != "") {
+                    Serial.print("Case Number: ");
+                    Serial.println(case_number);
+                }
+
+                String html_payload = MAIN_page;
+                server.send(200, "text/html", html_payload);
+			}
+		}
+	}
+}
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
 HKDF<SHA256> hkdf_hmac_object;      // Creates the HKDF Object based on HMAC-SHA256

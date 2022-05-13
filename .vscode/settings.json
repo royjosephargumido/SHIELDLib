@@ -11,6 +11,7 @@
         "initializer_list": "cpp",
         "ranges": "cpp",
         "system_error": "cpp",
-        "type_traits": "cpp"
+        "type_traits": "cpp",
+        "regex": "cpp"
     }
 }

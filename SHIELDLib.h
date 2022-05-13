@@ -12,17 +12,21 @@
 #include <WiFiUdp.h>            //Wi-Fi User Datagram Protocol (UDP) for NTP Functionality
 #include <TimeLib.h>            //Date-Time Functionality
 #include <NTPClient.h>          //Network Time Protocol (NTP) Functions
+#include <WiFiClient.h>         //NodeMCU as a WiFi access point
 #include <ESP8266WiFi.h>        //NodeMCU ESP8266 Wi-Fi Functionalities
 #include <ArduinoJson.h>        //JSON in Arduino
 #include <Adafruit_GFX.h>       //Use in OLED Display
-#include <Adafruit_SSD1306.h>   //Use in OLED Display
 #include <SoftwareSerial.h>     //Serial Communication
+#include <Adafruit_SSD1306.h>   //Use in OLED Display
+#include <ESP8266WebServer.h>   //Web Server functionalities
 
 #include "src/Crypto.h"
 #include "src/SHA256.h"
 #include "src/HKDF.h"
 #include "src/AES.h"
 #include "src/CTR.h"
+
+#include "src/SHIELDHTMLPayload.h"
 
 // Utilities
 #define MAX_BLOCKS              16                      //Number of bytes
@@ -73,6 +77,15 @@ enum ErrorCodes {
     SD_MISSING,
 };
 
+// Web Server
+bool isloggedin();
+void handleFTB();
+void route_Root();
+void route_Login();
+void route_Activate();
+void route_Faqs();
+void route_Main();
+
 class SHIELDLib {
     public:
         //Constructor
@@ -80,11 +93,19 @@ class SHIELDLib {
 
         //Core functionalities
         void startDevice();
+        void beginWebServer();
         void protocolbegin();
         void listen();
         void getHealthStatus();
+        void handleWebServer();
 
     private:
+        //SSID and Password of your WiFi router
+        const char* ssid			= "SHIELD";
+        const char* password		= "1234567890";
+
+        
+
         byte CIRCADIAN[MAX_BLOCKS];   // Circadian
         // HKDF INFO
         unsigned char const INFO_PUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X55, 0X4b};    //SHIELD-PUK
