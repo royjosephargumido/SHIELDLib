@@ -3,18 +3,27 @@
 File file;                      // File System
 RTC_DS3231 rtc;                 // RTC Module
 WiFiUDP ntpUDP;                 // Network Time Protocol (used to sync RTC with internet time)
-PCF8574 pcf8574(0x20);          // IO Expander Module
 SoftwareSerial ble(D3, D4);     // BLE Module
 NTPClient timeClient(ntpUDP, NTP_SERVER_ADDRESS, UTC_OFFSET_IN_SECONDS);    // Required for the syncing of local time with the internet time
 Adafruit_SSD1306 deviceOLED(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);        // OLED module
 ESP8266WebServer server(80);    //Server on port 80
 
+/* SHIELD Web Interface URL Route/Paths */
+const char* rootPath		= "/";
+const char* loginPath		= "/login.php";
+const char* activatePath	= "/activate.php";
+const char* menuPath		= "/main.php";
+const char* faqsPath		= "/faqs.php";
+
 //========================= CACHE =========================
 uint32_t profile_interval;
 uint32_t EOS;
-String HealthStatus = "";
+String HealthStatus = "Not Exposed";
+String curr_username = "";
+String curr_password = "";
 //=========================================================
 
+//======================== RUNTIME ========================
 uint32_t prof_start_time        = 0;
 const uint32_t PROFILE_PERIOD   = profile_interval * 60;
 
@@ -36,12 +45,8 @@ IPAddress myIP;
 String uname = "";
 String passkey = "";
 
-/* SHIELD Web Interface URL Route/Paths */
-const char* rootPath		= "/";
-const char* loginPath		= "/login.php";
-const char* activatePath	= "/activate.php";
-const char* menuPath		= "/main.php";
-const char* faqsPath		= "/faqs.php";
+bool isDeviceConfigured = false;
+//=========================================================
 
 /**
  * @brief SHIELD's Constructor
@@ -59,11 +64,122 @@ void SHIELDLib::startDevice() {
     initSDCard();       // Initializes the SD Card module
     beginClock();       // Begins the clock
     openBLE();          // Opens the BLE module
-    initIOExpander();   //Starts the IO Expander Module
+    initButton();   //Starts the IO Expander Module
 
     syncClock();        // Conncets to a saved WiFi and syncs local time with internet time
-    beginWebServer();
-    Settings();         //Opens or writes default configuration
+
+    // Starts the Web Server
+    Serial.println("Starting SHIELD Web Interface...");
+	WiFi.softAP(ssid, password);
+	myIP = WiFi.softAPIP();
+
+    if(SD.exists(getFilename(CONFIG_DATA, ""))) {
+        loadSettings(); //Load Settings from SD Card
+        isDeviceConfigured = true;
+
+        //Enable Web Server routes
+        server.on(rootPath, route_Root);
+        server.on(loginPath, route_Login);
+        server.on(menuPath, route_Main);
+        server.on(faqsPath, route_Faqs);
+    } else {
+        isDeviceConfigured = false;
+
+        displayMessage("Activate", "SHIELD");
+
+        //Enable Web Server routes
+        server.on(rootPath, route_Root);
+        server.on(loginPath, route_Login);
+        server.on(activatePath, route_Activate);
+        server.on(menuPath, route_Main);
+        server.on(faqsPath, route_Faqs);
+    }
+
+    // Make the Web Server running
+    server.begin();
+    Serial.println("SHIELD Web Interface running.");
+	Serial.print("SSID: ");
+	Serial.println(ssid);
+	Serial.print("IP Address: ");
+	Serial.println(myIP);
+}
+
+void SHIELDLib::startSHIELD() {
+    if(isDeviceConfigured) {
+        protocolbegin();
+        listen();
+        getExposureStatus();
+        server.handleClient();
+    }
+}
+
+void loadSettings() {
+    do {
+        file = SD.open(getFilename(CONFIG_DATA, ""));
+        if(!file) {
+            Serial.println("Unable to load settings!");
+            delay(500);
+        }
+    }while(!file);
+
+    char data[500];
+    int i = 0;
+    while(file.available()) {
+        data[i] = file.read();
+        i++;
+    }
+    data[i] = '\0';
+
+    file.close();
+
+    shield.decodeJsonData(deserializeJson(json_config, data));
+
+    profile_interval    = json_config["PI"];
+    EOS                 = json_config["EOS"];
+    const char* HS      = json_config["HS"];
+    const char* usern   = json_config["UN"];
+    const char* userp   = json_config["PK"];
+
+    HealthStatus = (String)HS;
+    curr_username = (String)usern;
+    curr_password = (String)userp;
+
+    circ_start_time = EOS + CIRCADIAN_PERIOD;
+    prof_start_time = EOS + PROFILE_PERIOD;
+
+    Serial.println("PI:\t" + shield.ulongtoString(profile_interval));
+    Serial.println("EOS:\t" + shield.ulongtoString(EOS));
+    Serial.println("HS:\t" + HealthStatus);
+    Serial.println("Username:\t" + curr_username);
+    Serial.println("Password:\t" + curr_password);
+
+    Serial.println("Settings loaded.");
+}
+
+void writeSettings() {
+    SD.mkdir(dir_core);
+
+    do {
+        file = SD.open(getFilename(CONFIG_DATA, ""), FILE_WRITE);
+        if(file) {
+            Serial.println("Unable to create the settings file!");
+            delay(250);
+        }
+    }while(!file);
+    EOS = shield.getSequenceNumber();
+    json_config["PI"]  = 15;                                    //ProfileInterval in minutes
+    json_config["EOS"] = shield.ulongtoString(EOS);    //Epoch Time on Startup
+    json_config["HS"]  = HealthStatus;                                  //HealthStatusCode
+    json_config["UN"]  = curr_username;                                  //HealthStatusCode
+    json_config["PK"]  = curr_password;                                  //HealthStatusCode
+
+    String rawData = "";
+    serializeJson(json_config, rawData);
+
+    file.println(rawData);
+    file.close();
+    
+    Serial.println("Done writing default settings.");
 }
 
 void SHIELDLib::beginWebServer() {
@@ -94,6 +210,7 @@ void SHIELDLib::protocolbegin() {
         String circadian = trng(CIRCADIAN, MAX_BLOCKS);      //Generates the Circadian
         save(CIRCADIAN_DATA, circadian);
 
+        /*
         sprintf(_dt, "%02d/%02d/%02d %02d:%02d:%02d", day(currentSN), month(currentSN), year(currentSN), hour(currentSN), minute(currentSN), second(currentSN));
         Serial.println("===============================================");
         Serial.print("Generated:\t");
@@ -102,6 +219,7 @@ void SHIELDLib::protocolbegin() {
         Serial.println("===============================================");
         Serial.println();
         Serial.println();
+        */
 
         if(!ftb) { circ_start_time += CIRCADIAN_PERIOD; }
     }
@@ -190,7 +308,7 @@ void SHIELDLib::listen() {
     }
 }
 
-void SHIELDLib::getHealthStatus() {
+void SHIELDLib::getExposureStatus() {
     uint8_t val = digitalRead(D0);
 
 	if (val == LOW) {        
@@ -219,10 +337,10 @@ void SHIELDLib::getHealthStatus() {
             displayMessage(_time, _date);
         }
     } else {
-        if(HealthStatus == "U1") {
-            displayMessage("You are", "Healthy");
-        } else {
+        if(HealthStatus == "Exposed") {
             displayMessage("You are", "Exposed");
+        } else {
+            displayMessage("You are", "NotExposed");
         }
         
         delay(5000);
@@ -267,10 +385,7 @@ void SHIELDLib::openBLE() {
     ble.begin(9600);
 }
 
-void SHIELDLib::initIOExpander() {
-    pcf8574.begin();
-    pcf8574.pinMode(P1, INPUT);     //Check Health Status Button
-
+void SHIELDLib::initButton() {
     pinMode(D0, INPUT);
     digitalWrite(D0, HIGH);
 }
@@ -368,7 +483,7 @@ void SHIELDLib::save(FileToSave _destinationFile, String _rawdata) {
     file.close();
 }
 
-String SHIELDLib::getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
+String getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
     String _dest = "";
     switch(_SHIELDFile){
         case 0: //Audit Folder
@@ -407,97 +522,30 @@ String SHIELDLib::getFilename(FileToSave _SHIELDFile, String SequenceNumber) {
     return _dest;
 }
 
-void SHIELDLib::Settings() {
-    //If the Settings file is not existing, it's the device First Time Boot (FTB)
-    //If existing, load settings
-    //else, write default settings
+bool getStatus(String message) {
+    bool stats = true;
+    if(message == "BEF52352") {
+        // Exposed
+        HealthStatus = "Exposed";
+    } else if(message == "D43611EC") {
+        // Not Exposed
+        HealthStatus = "Not Exposed";
+    } else if(message == "B5290B75") {
+        // COVID-19 Death
+        HealthStatus = "Exposed";
+    } else if(message == "7E3F4774") {
+        // Non COVID-19 Death
+        HealthStatus = "Not Exposed";
+    } else if(message == "A8352119") {
+        // Lost Device but EXPOSED
+        HealthStatus = "Exposed";
+    } else if(message == "7E01AC6C") {
+        // Lost Device but NOT EXPOSED
+        HealthStatus = "Not Exposed";
+    } else
+        stats = false;
 
-    if(SD.exists(getFilename(CONFIG_DATA, ""))) {
-        do {
-            file = SD.open(getFilename(CONFIG_DATA, ""));
-            if(!file) {
-                Serial.println("Unable to load settings!");
-                delay(500);
-            }
-        }while(!file);
-
-        char data[500];
-        int i = 0;
-        while(file.available()) {
-            data[i] = file.read();
-            i++;
-        }
-        data[i] = '\0';
-
-        file.close();
-
-        decodeJsonData(deserializeJson(json_config, data));
-
-        profile_interval    = json_config["PI"];
-        EOS                 = json_config["EOS"];
-        const char* HS      = json_config["HS"];
-
-        HealthStatus = (String)HS;
-
-        circ_start_time = EOS + CIRCADIAN_PERIOD;
-        prof_start_time = EOS + PROFILE_PERIOD;
-
-        Serial.println("PI:\t" + ulongtoString(profile_interval));
-        Serial.println("EOS:\t" + ulongtoString(EOS));
-        Serial.println("HS:\t" + HealthStatus);
-
-        Serial.println("Settings loaded.");
-    } else {
-        SD.mkdir(dir_core);
-
-        do {
-            file = SD.open(getFilename(CONFIG_DATA, ""), FILE_WRITE);
-            if(file) {
-                Serial.println("Unable to create the settings file!");
-                delay(250);
-            }
-        }while(!file);
-
-        json_config["PI"]  = 15;                                    //ProfileInterval in minutes
-        json_config["EOS"] = ulongtoString(getSequenceNumber());    //Epoch Time on Startup
-        json_config["HS"]  = "U1";                                  //HealthStatusCode
-
-        String rawData = "";
-        serializeJson(json_config, rawData);
-
-        file.println(rawData);
-        file.close();
-        
-        Serial.println("Done writing default settings.");
-    }
-}
-
-void SHIELDLib::changeHS(String newHS) {
-    //Loads the settings first
-    SD.remove(getFilename(CONFIG_DATA, ""));    //Deletes the Settings file for rewriting
-
-    SD.mkdir(dir_core);
-
-    do {
-        file = SD.open(getFilename(CONFIG_DATA, ""), FILE_WRITE);
-        if(file) {
-            Serial.println("Unable to create the settings file!");
-            delay(250);
-        }
-    }while(!file);
-
-    json_config["PI"]  = profile_interval;                                    //ProfileInterval in minutes
-    json_config["EOS"] = ulongtoString(EOS);    //Epoch Time on Startup
-    json_config["HS"]  = newHS;                                  //HealthStatusCode
-    HealthStatus = newHS;
-    
-    String rawData = "";
-    serializeJson(json_config, rawData);
-
-    file.println(rawData);
-    file.close();
-    
-    Serial.println("Done writing default settings.");
+    return stats;
 }
 
 /* WEB SERVER */
@@ -515,12 +563,13 @@ bool isloggedin() {
 
 void handleFTB() {
 	// This routine is executed when you open its IP in browser
-	if(device_not_activated) {
-		String html_payload = ACTIVATE_page;
+	if(isDeviceConfigured) {
+		String html_payload = LOGIN_page;
 		server.send(200, "text/html", html_payload);
 	}
 	else {
-		String html_payload = LOGIN_page;
+        Serial.println("ACTIVATE PAGE");
+        String html_payload = ACTIVATE_page;
 		server.send(200, "text/html", html_payload);
 	}
 }
@@ -530,28 +579,30 @@ void route_Root() {
 }
 
 void route_Login() {
-	if(!device_not_activated) {
-		// This routine is executed when the LOGIN Page is called
-		String username = server.arg("username");
-		String password = server.arg("password");
+	// This routine is executed when the LOGIN Page is called
+    String username = server.arg("username");
+    String password = server.arg("password");
 
-		if(passkey == password && username == uname) {
-			Serial.println();
-			Serial.print("Username: ");
-			Serial.println(username);
+    if(curr_username == username && curr_password == password) {
+        Serial.println();
+        Serial.print("Username: ");
+        Serial.println(username);
+        Serial.print("Password: ");
+        Serial.println(passkey);
 
-			Serial.print("Password: ");
-			Serial.println(passkey);
-			
-			logged_in = true;
+        logged_in = true;
+        isDeviceConfigured = true;
+        device_not_activated = false;
 
-			String html_payload = MAIN_page;
-			server.send(200, "text/html", html_payload);
-		} else {
-			String html_payload = LOGIN_page;
-			server.send(200, "text/html", html_payload);
-		}
-	} else {
+        if(HealthStatus == "Exposed") {
+            String html_payload = MAIN_EXPOSED_page;
+            server.send(200, "text/html", html_payload);
+        } else {
+            String html_payload = MAIN_NOT_EXPOSED_page;
+            server.send(200, "text/html", html_payload);
+        }
+        
+    } else {
         String html_payload = LOGIN_page;
         server.send(200, "text/html", html_payload);
     }
@@ -563,24 +614,36 @@ void route_Activate() {
 	passkey = server.arg("password"); 
 	String psw_repeat = server.arg("psw_repeat");
 
-	Serial.println();
-	Serial.print("Username: ");
-	Serial.println(uname);
+	if(uname != "") {
+        Serial.println();
+        Serial.print("Username: ");
+        Serial.println(uname);
 
-	Serial.print("Password: ");
-	Serial.println(passkey);
+        Serial.print("Password: ");
+        Serial.println(passkey);
 
-	Serial.print("Repeat: ");
-	Serial.println(psw_repeat);
+        Serial.print("Repeat: ");
+        Serial.println(psw_repeat);
 
-	if(passkey == psw_repeat) {
-		device_not_activated = false;
-		String html_payload = LOGIN_page;
-		server.send(200, "text/html", html_payload);
-	} else {
-		String html_payload = ACTIVATE_page;
-		server.send(200, "text/html", html_payload);
-	}
+        if(passkey == psw_repeat) {
+            curr_username = uname;
+            curr_password = passkey;
+            writeSettings();
+            loadSettings();
+
+            isDeviceConfigured = true;
+            device_not_activated = false;
+            
+            String html_payload = LOGIN_page;
+            server.send(200, "text/html", html_payload);
+        } else {
+            String html_payload = ACTIVATE_page;
+            server.send(200, "text/html", html_payload);
+        }
+    } else {
+        String html_payload = LOGIN_page;
+        server.send(200, "text/html", html_payload);
+    }
 }
 
 void route_Faqs() {
@@ -591,44 +654,105 @@ void route_Faqs() {
 }
 
 void route_Main() {
-	if(!device_not_activated) {
-		// This routine is executed when the LOGIN Page is called
-		String username = server.arg("username");
-		String password = server.arg("password");
+	// This routine is executed when the LOGIN Page is called
+    String username = server.arg("username");
+    String password = server.arg("password");
 
-		if(server.arg("username") != "") {
-			if(passkey == password && username == uname) {
-				Serial.println();
-				Serial.print("Username: ");
-				Serial.println(uname);
+    if(username != "" && password != "") {
+        if(curr_username == username && curr_password == password) {
+            Serial.println();
+            Serial.print("Username: ");
+            Serial.println(username);
 
-				Serial.print("Password: ");
-				Serial.println(passkey);
+            Serial.print("Password: ");
+            Serial.println(password);
 
-				device_not_activated = false;
-				logged_in = true;
-				//String s = "<a href='/logout'> Logout </a>";
-				String html_payload = MAIN_page;
-				server.send(200, "text/html", html_payload);
-			} else {
-				String html_payload = LOGIN_page;
-				server.send(200, "text/html", html_payload);
-			}
-		} else {
-			if(isloggedin()) {
-                String case_number = server.arg("case_number");
+            device_not_activated = false;
+            logged_in = true;
 
-                if(case_number != "") {
-                    Serial.print("Case Number: ");
-                    Serial.println(case_number);
-                }
-
-                String html_payload = MAIN_page;
+            if(HealthStatus == "Exposed") {
+                String html_payload = MAIN_EXPOSED_page;
                 server.send(200, "text/html", html_payload);
-			}
-		}
-	}
+            } else {
+                String html_payload = MAIN_NOT_EXPOSED_page;
+                server.send(200, "text/html", html_payload);
+            }
+        } else {
+            String html_payload = LOGIN_page;
+            server.send(200, "text/html", html_payload);
+        }
+    } else {
+        if(isloggedin()) {
+            String case_number = server.arg("case_number");
+
+            if(case_number != "") {
+                Serial.print("Case Number: ");
+                Serial.println(case_number);
+
+                //Changes ExposureStatus then save file
+                if(getStatus(case_number)) {
+                    //Input is valid
+                    changeHS();
+                }
+            }
+
+            if(HealthStatus == "Exposed") {
+                String html_payload = MAIN_EXPOSED_page;
+                server.send(200, "text/html", html_payload);
+            } else {
+                String html_payload = MAIN_NOT_EXPOSED_page;
+                server.send(200, "text/html", html_payload);
+            }
+        }
+    }
 }
+
+void changeHS() {
+    //Loads the settings first
+    SD.remove(getFilename(CONFIG_DATA, ""));    //Deletes the Settings file for rewriting
+
+    SD.mkdir(dir_core);
+
+    do {
+        file = SD.open(getFilename(CONFIG_DATA, ""), FILE_WRITE);
+        if(file) {
+            Serial.println("Unable to create the settings file!");
+            delay(250);
+        }
+    }while(!file);
+
+    Serial.println("=============================");
+    Serial.print("Interval: ");
+    Serial.println(profile_interval);
+    
+    Serial.print("EOS: ");
+    Serial.println(EOS);
+    
+    Serial.print("Status: ");
+    Serial.println(HealthStatus);
+
+    Serial.print("Username: ");
+    Serial.println(curr_username);
+    
+    Serial.print("Password: ");
+    Serial.println(curr_password);
+    Serial.println("=============================");
+
+    json_config["PI"]  = 15;                                    //ProfileInterval in minutes
+    json_config["EOS"] = EOS;    //Epoch Time on Startup
+    json_config["HS"]  = HealthStatus;                                  //HealthStatusCode
+    json_config["UN"]  = curr_username;                                  //HealthStatusCode
+    json_config["PK"]  = curr_password;                                  //HealthStatusCode
+
+    String rawData = "";
+    serializeJson(json_config, rawData);
+
+    file.println(rawData);
+    file.close();
+    
+    Serial.println("Done writing default settings.");
+}
+
 /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
 HKDF<SHA256> hkdf_hmac_object;      // Creates the HKDF Object based on HMAC-SHA256

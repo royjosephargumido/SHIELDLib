@@ -12,6 +12,7 @@
         "ranges": "cpp",
         "system_error": "cpp",
         "type_traits": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "typeinfo": "cpp"
     }
 }

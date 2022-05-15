@@ -331,7 +331,7 @@ const char ACTIVATE_page[] PROGMEM = R"=====(
 </html>
 )=====";
 
-const char MAIN_page[] PROGMEM = R"=====(
+const char MAIN_EXPOSED_page[] PROGMEM = R"=====(
 <!DOCTYPE html>
 <html>
 <head>
@@ -393,6 +393,16 @@ const char MAIN_page[] PROGMEM = R"=====(
         text-align: center;
         background-color: #f1f1f1;
         margin-bottom: 30px;
+    }
+    
+    .EScard {
+        border-radius: 10px;
+        box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+        padding: 16px;
+        text-align: center;
+        background-color: #C41E3A;
+        margin-bottom: 40px;
+        color: White;
     }
 
     a:link{
@@ -496,8 +506,15 @@ const char MAIN_page[] PROGMEM = R"=====(
 
 	/* Header */
 	h1 {
-		margin-top: 0px;
+    	margin-top: 0px;
+        margin-bottom: 0px;
 		text-align: center;
+        font-size: 42px;
+	}
+    
+    h2 {
+		text-align: center;
+        font-size: 25px;
 	}
 
 	/* Extra styles for the cancel button */
@@ -512,12 +529,10 @@ const char MAIN_page[] PROGMEM = R"=====(
 
 <body>
 <div class="container">
-    <h2 style="text-align: center;">SHIELD | Home</h2>
-
-    <div class="card">
+    <div class="EScard">
         <span> <h2>You are </h2>
-            <h1> E X P O S E D </h1> 
-            <h2> in the last 14 days. </h2>
+            <h1>EXPOSED</h1> 
+            <h2> in the last 17 days</h2>
         </span>
     </div>
 
@@ -525,8 +540,265 @@ const char MAIN_page[] PROGMEM = R"=====(
         <div class="column">
             <a href="#" id ="btn">
                 <div class="card">     
-                <span> <h2>I'm <b>POSITIVE</b> from
-                    COVID-19 </h2>
+                <span> <h2>Share Exposure Status</h2>
+                </span>
+                </div>
+            </a>
+        </div>
+
+        <div class="column" >
+            <a href="/faqs.php">
+                <div class="card">
+                    <span><h2>Frequently Asked Questions</h2></span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <button type="submit" class="logout_btn" onclick="location.href='/';">Log out</button>
+</div>
+
+	<div id="case_mdl" class="modal">
+		<form class="modal-content animate" action="/main.php" method="post">
+			<div class="container">
+                <h1>SHIELD</h1>
+				<p>Share your positive test result.</p>
+				<hr>
+				<input type="text" placeholder="Case Number" name="case_number" required>
+				<p>By sending your exposure history, you agree to <a href="#" style="color:dodgerblue">Terms of Condition</a> and in accordance to Republic Act 11332 (Mandatory Reporting of Notifiable Diseases and Health Events of Public Health Concern Act) and Republic Act 10173 (Data Privacy Act of 2012).</p>
+
+				<div class="clearfix">
+					<button type="submit" onclick="document.getElementById('case_number').style.display='none'" class="btns">Share Now</button>
+					<button type="button" onclick="document.getElementById('case_mdl').style.display='none'" class="btns">Cancel</button>
+				</div>
+			</div>
+		</form>
+	</div>
+
+<script>
+    var modal = document.getElementById('case_mdl');
+    var positive = document.getElementById("btn");
+
+    positive.onclick = function(){
+        modal.style.display = "block";
+    }
+
+</script>
+
+</body>
+</html>
+)=====";
+
+const char MAIN_NOT_EXPOSED_page[] PROGMEM = R"=====(
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+	
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; }
+
+    /* Full-width input fields */
+	input[type=text]{
+		width: 100%;
+		padding: 12px 20px;
+        border: 1px solid #ccc;
+		border-radius: 10px;
+		margin: 8px 0;
+        opacity: 0.85;
+		display: inline-block;
+		font-size: 15px;
+        line-height: 20px;
+        text-decoration: none; /* remove underline from anchors */
+		box-sizing: border-box;
+	}
+
+	/* Add a background color when the inputs get focus */
+	input[type=text]:focus{
+		background-color: #ddd;
+		outline: none;
+        border-color: #AF52F2;
+	}
+
+    /* Float four columns side by side */
+    .column {
+        float: left;
+        width: 50%;
+        padding: 0 10px;
+    }
+
+    /* Add padding to container elements */
+    .container {
+        padding: 16px;
+    }
+
+    /* Remove extra left and right margins, due to padding */
+    .row {margin: 0 -5px;}
+
+    /* Clear floats after the columns */
+    .row:after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+
+    /* Style the counter cards */
+    .card {
+        border-radius: 10px;
+        box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+        padding: 16px;
+        text-align: center;
+        background-color: #f1f1f1;
+        margin-bottom: 30px;
+    }
+    
+    .EScard {
+        border-radius: 10px;
+        box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+        padding: 16px;
+        text-align: center;
+        background-color: #097969 ;
+        margin-bottom: 40px;
+        color: White;
+    }
+
+    a:link{
+        text-decoration: none;
+    }
+
+    p {
+        text-align: center;
+    }
+    
+    /* Set a style for all buttons */
+	button {
+		background-color: #422057FF;
+		color: white;
+		padding: 14px 20px;
+		margin-top: 12px;
+		margin-bottom: 1px;        
+		border: none;
+		border-radius: 10px;
+		cursor: pointer;
+		width: 100%;
+		font-size: 17px;
+	}
+
+	/* Mouse Hover */
+	button:hover {
+		opacity: 0.8;
+	}
+
+	/* Float cancel and signup buttons and add an equal width */
+	.btns {
+		float: left;
+		width: 100%;
+	}
+
+	/* Add padding to container elements */
+	.container {
+		padding: 16px;
+	}
+
+	/* The Modal (background) */
+	.modal {
+		display: none; /* Hidden by default */
+		position: fixed; /* Stay in place */
+		z-index: 1; /* Sit on top */
+		left: 0;
+		top: 0;
+		width: 100%; /* Full width */
+		height: 100%; /* Full height */
+		overflow: auto; /* Enable scroll if needed */
+		background-color: #474e5d;
+		padding-top: 50px;
+	}
+
+	/* Modal Content/Box */
+	.modal-content {
+		background-color: #fefefe;
+		margin: 5% auto 15% auto; /* 5% from the top, 15% from the bottom and centered */
+		border: 1px solid #888;
+		border-radius: 10px;
+		width: 80%; /* Could be more or less, depending on screen size */
+	}
+
+
+	/* Zoom Animation */
+	.animate {
+		-webkit-animation: animatezoom 0.6s;
+		animation: animatezoom 0.6s
+	}
+
+	@-webkit-keyframes animatezoom {
+		from {-webkit-transform: scale(0)} 
+		to {-webkit-transform: scale(1)}
+	}
+
+	@keyframes animatezoom {
+		from {transform: scale(0)} 
+		to {transform: scale(1)}
+	}
+
+	/* Style the horizontal ruler */
+	hr {
+		border: 1px solid #f1f1f1;
+		margin-top: 0px;
+		margin-bottom: 10px;
+	}
+
+	/* Clear floats */
+	.clearfix::after {
+		content: "";
+		clear: both;
+		display: table;
+	}
+
+	/* Change styles for cancel button and signup button on extra small screens */
+	@media screen and (max-width: 300px) {
+		.signupbtn {
+			width: 100%;
+		}
+	}
+
+	/* Header */
+	h1 {
+    	margin-top: 0px;
+        margin-bottom: 0px;
+		text-align: center;
+        font-size: 42px;
+	}
+    
+    h2 {
+		text-align: center;
+        font-size: 25px;
+	}
+
+	/* Extra styles for the cancel button */
+	.cancelbtn {
+		width: auto;
+		padding: 10px 18px;
+		background-color: #f44336;
+	}
+
+</style>
+</head>
+
+<body>
+<div class="container">
+    <div class="EScard">
+        <span> <h2>You are </h2>
+            <h1>NOT EXPOSED</h1> 
+            <h2> in the last 17 days</h2>
+        </span>
+    </div>
+
+    <div class="row">
+        <div class="column">
+            <a href="#" id ="btn">
+                <div class="card">     
+                <span> <h2>Share Exposure Status</h2>
                 </span>
                 </div>
             </a>

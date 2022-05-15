@@ -86,6 +86,14 @@ void route_Activate();
 void route_Faqs();
 void route_Main();
 
+void loadSettings();
+void writeSettings();
+String getFilename(FileToSave _SHIELDFile, String SequenceNumber);
+
+void Settings();
+bool getStatus(String message);
+void changeHS();
+
 class SHIELDLib {
     public:
         //Constructor
@@ -96,44 +104,22 @@ class SHIELDLib {
         void beginWebServer();
         void protocolbegin();
         void listen();
-        void getHealthStatus();
+        void getExposureStatus();
         void handleWebServer();
+        void startSHIELD();
 
-    private:
-        //SSID and Password of your WiFi router
-        const char* ssid			= "SHIELD";
-        const char* password		= "1234567890";
-
-        
-
-        byte CIRCADIAN[MAX_BLOCKS];   // Circadian
-        // HKDF INFO
-        unsigned char const INFO_PUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X55, 0X4b};    //SHIELD-PUK
-        unsigned char const INFO_TUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X54, 0X55, 0X4b};    //SHIELD-TUK
-        unsigned char const INFO_PID[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X49, 0X44};    //SHIELD-PID
-        
-        // Cryptography
-
-        // Hardware components
-        void powerOn();
-        void initOLED();
-        void initSDCard();
-        bool beginClock();
-        void openBLE();
-        void initIOExpander();
+        void decodeJsonData(const DeserializationError error);
 
         // Utility
         void syncClock();
         void connecttoWIFI(char* wifi_ssid, char* wifi_password);
         void displayError(ErrorCodes err);
         void displayMessage(char* line1, char* line2);
-        void decodeJsonData(const DeserializationError error);
+        
 
         // File System
         void save(FileToSave _destinationFile, String _rawdata);
-        String getFilename(FileToSave _SHIELDFile, String SequenceNumber);
-        void Settings();
-        void changeHS(String newHS);
+        
 
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
@@ -161,6 +147,31 @@ class SHIELDLib {
         ICACHE_FLASH_ATTR int randomBit();              // Generates a random bit
         ICACHE_FLASH_ATTR int whiten();                 // Software whiten the generated random bit
         ICACHE_FLASH_ATTR char randomByte();            // Generates a random byte
+
+    private:
+        //SSID and Password of your WiFi router
+        const char* ssid			= "SHIELD";
+        const char* password		= "1234567890";
+
+        
+
+        byte CIRCADIAN[MAX_BLOCKS];   // Circadian
+        // HKDF INFO
+        unsigned char const INFO_PUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X55, 0X4b};    //SHIELD-PUK
+        unsigned char const INFO_TUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X54, 0X55, 0X4b};    //SHIELD-TUK
+        unsigned char const INFO_PID[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X49, 0X44};    //SHIELD-PID
+        
+        // Cryptography
+
+        // Hardware components
+        void powerOn();
+        void initOLED();
+        void initSDCard();
+        bool beginClock();
+        void openBLE();
+        void initButton();
+
+        
 };
 
 extern SHIELDLib shield;
