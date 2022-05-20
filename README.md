@@ -60,7 +60,7 @@ SHIELD strictly follow the following file structuring schemes:
         |
         +--- Core
             |
-            +--- beaconconfig.shield
+            +--- config.shield
 
 ## Required Third-Party Libraries
 SHIELD uses numerous third-party libraries to perform specific functions. These libraries are required and must be installed prior before using the SHIELD library.
