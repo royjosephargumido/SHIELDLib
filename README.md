@@ -36,19 +36,15 @@ SHIELD strictly follow the following file structuring schemes:
     |
     +---Data
     |   |
-    |   +--- Audit
-    |   |    |
-    |   |    +--- audit_1642084941.shield
-    |   |
     |   +--- Circadian
     |   |    |
     |   |    +--- circ_1642084941.shield
     |   |
-    |   +--- CIRRUS
+    |   +--- Diagnosis Keys
     |   |    |
-    |   |    +--- cirrus.shield
+    |   |    +--- dk.shield
     |   |
-    |   +--- Memories
+    |   +--- Transcripts
     |   |     |
     |   |     +--- transcript_1642084941.shield
     |   |
@@ -62,19 +58,9 @@ SHIELD strictly follow the following file structuring schemes:
     |   
     +---System
         |
-        +--- Documentation
-        |    |
-        |    +--- SHIELD User Manual.pdf
-        |
-        +--- Dumps
-        |    |
-        |    +--- dump_1642084941.shield
-        |
         +--- Core
             |
             +--- beaconconfig.shield
-            |
-            +--- wifi.shield
 
 ## Required Third-Party Libraries
 SHIELD uses numerous third-party libraries to perform specific functions. These libraries are required and must be installed prior before using the SHIELD library.
