@@ -32,7 +32,7 @@ const uint32_t CIRCADIAN_PERIOD = 86400;   // Number of seconds in a day
 
 uint32_t currentSN = 0;     // Current SequenceNumber
 bool ftb = true;            // First-time Boot (use to check if the device boots for the first time)        
-String smart_tag = "";
+String smart_tag = "";         
 StaticJsonDocument<200> doc;
 StaticJsonDocument<200> json_config;
 char* _dt = (char*)malloc(50);
@@ -64,7 +64,7 @@ void SHIELDLib::startDevice() {
     initSDCard();       // Initializes the SD Card module
     beginClock();       // Begins the clock
     openBLE();          // Opens the BLE module
-    initButton();   //Starts the IO Expander Module
+    initButton();       //Starts Button
 
     syncClock();        // Conncets to a saved WiFi and syncs local time with internet time
 
@@ -246,8 +246,6 @@ void SHIELDLib::protocolbegin() {
 
         //Encrpyt the PUK using the Circadian and the TUK
         smart_tag = encrypt(CIRCADIAN, PUK, TUK);                   //Encrypts PUK using CIRCADIAN and TUK in AES128-CTR
-        //uint32_t CV = getCIRRUSVersion();
-        //cipher = ulongtoString(currentSN) + '-' + cipher;
 
         String profile = "";
 
@@ -300,9 +298,13 @@ void SHIELDLib::listen() {
         message.trim();
         Serial.println("Data received.");
         Serial.println(message.length());
+
+        //Save Encounter History
+        save(TRANSCRIPT_DATA, message);
         Serial.println(message);
-        //save(TRANSCRIPT_DATA, message);
-        ble.println("smart_tag");
+
+        //Send Device SmartTag
+        ble.println(smart_tag);
         Serial.flush();
         ble.flush();
     }

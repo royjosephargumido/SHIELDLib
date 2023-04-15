@@ -8,7 +8,6 @@
 #include <SPI.h>                //Serial Peripheral Interface (SPI) Protocol for the SD Card Module
 #include <Wire.h>               //I2C Protocol for Two-Wire modules
 #include <RTClib.h>             //Real-time Clock (RTC) Functionalities
-#include <PCF8574.h>            //For the PCF8574 GPIO Expander
 #include <WiFiUdp.h>            //Wi-Fi User Datagram Protocol (UDP) for NTP Functionality
 #include <TimeLib.h>            //Date-Time Functionality
 #include <NTPClient.h>          //Network Time Protocol (NTP) Functions
@@ -115,11 +114,9 @@ class SHIELDLib {
         void connecttoWIFI(char* wifi_ssid, char* wifi_password);
         void displayError(ErrorCodes err);
         void displayMessage(char* line1, char* line2);
-        
 
         // File System
         void save(FileToSave _destinationFile, String _rawdata);
-        
 
         /* SHIELD'S CRYPTOGRAPHY FUNCTIONS */
 
@@ -153,8 +150,6 @@ class SHIELDLib {
         const char* ssid			= "SHIELD";
         const char* password		= "1234567890";
 
-        
-
         byte CIRCADIAN[MAX_BLOCKS];   // Circadian
         // HKDF INFO
         unsigned char const INFO_PUK[10] = {0X53, 0X48, 0X49, 0X45, 0X4c, 0X44, 0X2d, 0X50, 0X55, 0X4b};    //SHIELD-PUK
@@ -170,8 +165,6 @@ class SHIELDLib {
         bool beginClock();
         void openBLE();
         void initButton();
-
-        
 };
 
 extern SHIELDLib shield;
